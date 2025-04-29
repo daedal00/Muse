@@ -11,14 +11,89 @@ import (
 	"github.com/daedal00/muse/backend/graph/model"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+// CreateUser is the resolver for the createUser field.
+func (r *mutationResolver) CreateUser(ctx context.Context, username string, email string, password string) (*model.User, error) {
+	panic(fmt.Errorf("not implemented: CreateUser - createUser"))
 }
 
-// Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
+// CreateReview is the resolver for the createReview field.
+func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateReviewInput) (*model.Review, error) {
+	panic(fmt.Errorf("not implemented: CreateReview - createReview"))
+}
+
+// CreatePlaylist is the resolver for the createPlaylist field.
+func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.CreatePlaylistInput) (*model.Playlist, error) {
+	panic(fmt.Errorf("not implemented: CreatePlaylist - createPlaylist"))
+}
+
+// AddTrackToPlaylist is the resolver for the addTrackToPlaylist field.
+func (r *mutationResolver) AddTrackToPlaylist(ctx context.Context, playlistID string, trackID string) (*model.Playlist, error) {
+	panic(fmt.Errorf("not implemented: AddTrackToPlaylist - addTrackToPlaylist"))
+}
+
+// Me is the resolver for the me field.
+func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
+	panic(fmt.Errorf("not implemented: Me - me"))
+}
+
+// User is the resolver for the user field.
+func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
+	panic(fmt.Errorf("not implemented: User - user"))
+}
+
+// Albums is the resolver for the albums field.
+func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string) (*model.AlbumConnection, error) {
+	panic(fmt.Errorf("not implemented: Albums - albums"))
+}
+
+// Album is the resolver for the album field.
+func (r *queryResolver) Album(ctx context.Context, id string) (*model.Album, error) {
+	panic(fmt.Errorf("not implemented: Album - album"))
+}
+
+// Tracks is the resolver for the tracks field.
+func (r *queryResolver) Tracks(ctx context.Context, first *int32, after *string) (*model.TrackConnection, error) {
+	panic(fmt.Errorf("not implemented: Tracks - tracks"))
+}
+
+// Track is the resolver for the track field.
+func (r *queryResolver) Track(ctx context.Context, id string) (*model.Track, error) {
+	panic(fmt.Errorf("not implemented: Track - track"))
+}
+
+// Playlists is the resolver for the playlists field.
+func (r *queryResolver) Playlists(ctx context.Context, first *int32, after *string) (*model.PlaylistConnection, error) {
+	panic(fmt.Errorf("not implemented: Playlists - playlists"))
+}
+
+// Playlist is the resolver for the playlist field.
+func (r *queryResolver) Playlist(ctx context.Context, id string) (*model.Playlist, error) {
+	panic(fmt.Errorf("not implemented: Playlist - playlist"))
+}
+
+// Reviews is the resolver for the reviews field.
+func (r *queryResolver) Reviews(ctx context.Context, first *int32, after *string) (*model.ReviewConnection, error) {
+	panic(fmt.Errorf("not implemented: Reviews - reviews"))
+}
+
+// Review is the resolver for the review field.
+func (r *queryResolver) Review(ctx context.Context, id string) (*model.Review, error) {
+	panic(fmt.Errorf("not implemented: Review - review"))
+}
+
+// SearchAlbums is the resolver for the searchAlbums field.
+func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearchInput) ([]*model.AlbumSearchResult, error) {
+	panic(fmt.Errorf("not implemented: SearchAlbums - searchAlbums"))
+}
+
+// SearchArtists is the resolver for the searchArtists field.
+func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSearchInput) ([]*model.ArtistSearchResult, error) {
+	panic(fmt.Errorf("not implemented: SearchArtists - searchArtists"))
+}
+
+// ReviewAdded is the resolver for the reviewAdded field.
+func (r *subscriptionResolver) ReviewAdded(ctx context.Context, albumID string) (<-chan *model.Review, error) {
+	panic(fmt.Errorf("not implemented: ReviewAdded - reviewAdded"))
 }
 
 // Mutation returns MutationResolver implementation.
@@ -27,5 +102,9 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

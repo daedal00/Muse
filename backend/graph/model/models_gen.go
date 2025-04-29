@@ -2,25 +2,213 @@
 
 package model
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
+
+type Album struct {
+	ID          string            `json:"id"`
+	SpotifyID   *string           `json:"spotifyID,omitempty"`
+	Title       string            `json:"title"`
+	Artist      *Artist           `json:"artist"`
+	ReleaseDate *string           `json:"releaseDate,omitempty"`
+	CoverImage  *string           `json:"coverImage,omitempty"`
+	Tracks      *TrackConnection  `json:"tracks"`
+	Reviews     *ReviewConnection `json:"reviews"`
+}
+
+type AlbumConnection struct {
+	TotalCount int32        `json:"totalCount"`
+	Edges      []*AlbumEdge `json:"edges"`
+	PageInfo   *PageInfo    `json:"pageInfo"`
+}
+
+type AlbumEdge struct {
+	Cursor string `json:"cursor"`
+	Node   *Album `json:"node"`
+}
+
+type AlbumSearchInput struct {
+	Query  string          `json:"query"`
+	Limit  *int32          `json:"limit,omitempty"`
+	Offset *int32          `json:"offset,omitempty"`
+	Source *ExternalSource `json:"source,omitempty"`
+}
+
+type AlbumSearchResult struct {
+	ID             string                `json:"id"`
+	Title          string                `json:"title"`
+	Artist         []*ArtistSearchResult `json:"artist"`
+	ReleaseDate    *string               `json:"releaseDate,omitempty"`
+	CoverImage     *string               `json:"coverImage,omitempty"`
+	ExternalSource ExternalSource        `json:"externalSource"`
+}
+
+type Artist struct {
+	ID        string           `json:"id"`
+	SpotifyID *string          `json:"spotifyID,omitempty"`
+	Name      string           `json:"name"`
+	Albums    *AlbumConnection `json:"albums"`
+}
+
+type ArtistSearchInput struct {
+	Query  string          `json:"query"`
+	Limit  *int32          `json:"limit,omitempty"`
+	Offset *int32          `json:"offset,omitempty"`
+	Source *ExternalSource `json:"source,omitempty"`
+}
+
+type ArtistSearchResult struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	ExternalSource ExternalSource `json:"externalSource"`
+}
+
+type CreatePlaylistInput struct {
+	Title       string  `json:"title"`
+	Description *string `json:"description,omitempty"`
+	CoverImage  *string `json:"coverImage,omitempty"`
+}
+
+type CreateReviewInput struct {
+	AlbumID    string  `json:"albumId"`
+	Rating     int32   `json:"rating"`
+	ReviewText *string `json:"reviewText,omitempty"`
+}
+
 type Mutation struct {
 }
 
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
+type PageInfo struct {
+	EndCursor   *string `json:"endCursor,omitempty"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+type Playlist struct {
+	ID          string           `json:"id"`
+	Title       string           `json:"title"`
+	Description *string          `json:"description,omitempty"`
+	CoverImage  *string          `json:"coverImage,omitempty"`
+	Tracks      *TrackConnection `json:"tracks"`
+	Creator     *User            `json:"creator"`
+}
+
+type PlaylistConnection struct {
+	TotalCount int32           `json:"totalCount"`
+	Edges      []*PlaylistEdge `json:"edges"`
+	PageInfo   *PageInfo       `json:"pageInfo"`
+}
+
+type PlaylistEdge struct {
+	Cursor string    `json:"cursor"`
+	Node   *Playlist `json:"node"`
 }
 
 type Query struct {
 }
 
-type Todo struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-	User *User  `json:"user"`
+type Review struct {
+	ID         string  `json:"id"`
+	User       *User   `json:"user"`
+	Album      *Album  `json:"album"`
+	Rating     int32   `json:"rating"`
+	ReviewText *string `json:"reviewText,omitempty"`
+	CreatedAt  string  `json:"createdAt"`
+}
+
+type ReviewConnection struct {
+	TotalCount int32         `json:"totalCount"`
+	Edges      []*ReviewEdge `json:"edges"`
+	PageInfo   *PageInfo     `json:"pageInfo"`
+}
+
+type ReviewEdge struct {
+	Cursor string  `json:"cursor"`
+	Node   *Review `json:"node"`
+}
+
+type Subscription struct {
+}
+
+type Track struct {
+	ID          string  `json:"id"`
+	SpotifyID   *string `json:"spotifyID,omitempty"`
+	Title       string  `json:"title"`
+	Duration    *int32  `json:"duration,omitempty"`
+	TrackNumber *int32  `json:"trackNumber,omitempty"`
+	Album       *Album  `json:"album"`
+}
+
+type TrackConnection struct {
+	TotalCount int32        `json:"totalCount"`
+	Edges      []*TrackEdge `json:"edges"`
+	PageInfo   *PageInfo    `json:"pageInfo"`
+}
+
+type TrackEdge struct {
+	Cursor string `json:"cursor"`
+	Node   *Track `json:"node"`
+}
+
+type TrackSearchResult struct {
+	ID             string                `json:"id"`
+	Title          string                `json:"title"`
+	Duration       *int32                `json:"duration,omitempty"`
+	TrackNumber    *int32                `json:"trackNumber,omitempty"`
+	Album          *AlbumSearchResult    `json:"album,omitempty"`
+	Artists        []*ArtistSearchResult `json:"artists"`
+	ExternalSource ExternalSource        `json:"externalSource"`
 }
 
 type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID        string              `json:"id"`
+	Name      string              `json:"name"`
+	Email     string              `json:"email"`
+	Bio       *string             `json:"bio,omitempty"`
+	Avatar    *string             `json:"avatar,omitempty"`
+	Playlists *PlaylistConnection `json:"playlists"`
+	Reviews   *ReviewConnection   `json:"reviews"`
+}
+
+type ExternalSource string
+
+const (
+	ExternalSourceSpotify     ExternalSource = "SPOTIFY"
+	ExternalSourceMusicbrainz ExternalSource = "MUSICBRAINZ"
+)
+
+var AllExternalSource = []ExternalSource{
+	ExternalSourceSpotify,
+	ExternalSourceMusicbrainz,
+}
+
+func (e ExternalSource) IsValid() bool {
+	switch e {
+	case ExternalSourceSpotify, ExternalSourceMusicbrainz:
+		return true
+	}
+	return false
+}
+
+func (e ExternalSource) String() string {
+	return string(e)
+}
+
+func (e *ExternalSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ExternalSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ExternalSource", str)
+	}
+	return nil
+}
+
+func (e ExternalSource) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
