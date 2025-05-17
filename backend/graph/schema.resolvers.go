@@ -8,12 +8,35 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/daedal00/muse/backend/auth"
 	"github.com/daedal00/muse/backend/graph/model"
+	"github.com/google/uuid"
 )
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, username string, email string, password string) (*model.User, error) {
-	panic(fmt.Errorf("not implemented: CreateUser - createUser"))
+	// 1. Hash password
+	hash, err := auth.HashPassword(password)
+	if err != nil{
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// 2. Generate uuid for user
+	id := uuid.New().String()
+
+	// 3. Build GraphQL user model
+	user := &model.User{
+		ID: id,
+		Name: username,
+		Email: email,
+	}
+
+	// 4. Store in memory
+	r.users = append(r.users, user)
+	r.passwordHashes[id] = hash
+
+	// 5. Return newly created user
+	return user, nil
 }
 
 // CreateReview is the resolver for the createReview field.
