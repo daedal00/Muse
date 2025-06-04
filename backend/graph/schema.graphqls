@@ -1,0 +1,218 @@
+scalar DateTime
+
+enum ExternalSource {
+  SPOTIFY
+  MUSICBRAINZ
+}
+
+# -----------------------------------------------------------
+# Core Domain Types
+# -----------------------------------------------------------
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  bio: String
+  avatar: String
+  playlists: PlaylistConnection!
+  reviews: ReviewConnection!
+}
+
+type Album {
+  id: ID!
+  spotifyID: String # Spotify specific ID
+  title: String!
+  artist: Artist!
+  releaseDate: DateTime
+  coverImage: String # From spotify or S3 if overridden
+  tracks: TrackConnection!
+  reviews: ReviewConnection!
+}
+
+type Artist {
+  id: ID!
+  spotifyID: String # Spotify specific ID
+  name: String!
+  albums: AlbumConnection!
+}
+
+type Track {
+  id: ID!
+  spotifyID: String
+  title: String!
+  duration: Int # Duration in seconds
+  trackNumber: Int
+  album: Album!
+}
+
+type Review {
+  id: ID!
+  user: User!
+  album: Album!
+  rating: Int! # 1-5
+  reviewText: String
+  createdAt: DateTime!
+}
+
+type Playlist {
+  id: ID!
+  title: String!
+  description: String
+  coverImage: String # url stored in S3 bucket
+  tracks: TrackConnection!
+  creator: User!
+}
+
+# ---------------------------------------
+# Connection Types for Pagination
+# ---------------------------------------
+
+type AlbumConnection {
+  totalCount: Int!
+  edges: [AlbumEdge!]!
+  pageInfo: PageInfo!
+}
+
+type AlbumEdge {
+  cursor: String!
+  node: Album!
+}
+
+type TrackConnection {
+  totalCount: Int!
+  edges: [TrackEdge!]!
+  pageInfo: PageInfo!
+}
+
+type TrackEdge {
+  cursor: String!
+  node: Track!
+}
+
+type ReviewConnection {
+  totalCount: Int!
+  edges: [ReviewEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ReviewEdge {
+  cursor: String!
+  node: Review!
+}
+
+type PlaylistConnection {
+  totalCount: Int!
+  edges: [PlaylistEdge!]!
+  pageInfo: PageInfo!
+}
+
+type PlaylistEdge {
+  cursor: String!
+  node: Playlist!
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+# ---------------------------------------
+# External API Search Result Types
+# ---------------------------------------
+
+type AlbumSearchResult {
+  id: ID!
+  title: String!
+  artist: [ArtistSearchResult!]!
+  releaseDate: DateTime
+  coverImage: String
+  externalSource: ExternalSource!
+}
+
+type ArtistSearchResult {
+  id: ID!
+  name: String!
+  externalSource: ExternalSource!
+}
+
+type TrackSearchResult {
+  id: ID!
+  title: String!
+  duration: Int
+  trackNumber: Int
+  album: AlbumSearchResult
+  artists: [ArtistSearchResult!]!
+  externalSource: ExternalSource!
+}
+
+# ---------------------------------------
+# Inputs for Search Queries
+# ---------------------------------------
+
+input AlbumSearchInput {
+  query: String!
+  limit: Int
+  offset: Int
+  source: ExternalSource = SPOTIFY
+}
+
+input ArtistSearchInput {
+  query: String!
+  limit: Int
+  offset: Int
+  source: ExternalSource = SPOTIFY
+}
+
+# ---------------------------------------
+# Query Type – Core and External Searches
+# ---------------------------------------
+
+type Query {
+  me: User
+  user(id: ID!): User
+
+  albums(first: Int, after: String): AlbumConnection!
+  album(id: ID!): Album
+
+  tracks(first: Int, after: String): TrackConnection!
+  track(id: ID!): Track
+
+  playlists(first: Int, after: String): PlaylistConnection!
+  playlist(id: ID!): Playlist
+
+  reviews(first: Int, after: String): ReviewConnection!
+  review(id: ID!): Review
+
+  # External Search Queries
+  searchAlbums(input: AlbumSearchInput!): [AlbumSearchResult!]!
+  searchArtists(input: ArtistSearchInput!): [ArtistSearchResult!]!
+}
+
+# ---------------------------------------
+# Mutations and Subscriptions
+# ---------------------------------------
+
+input CreateReviewInput {
+  albumId: ID!
+  rating: Int!
+  reviewText: String
+}
+
+input CreatePlaylistInput {
+  title: String!
+  description: String
+  coverImage: String
+}
+
+type Mutation {
+  createUser(name: String!, email: String!, password: String!): User!
+  login(email: String!, password: String!): String! # Returns simple token (UserID)
+  createReview(input: CreateReviewInput!): Review!
+  createPlaylist(input: CreatePlaylistInput!): Playlist!
+  addTrackToPlaylist(playlistId: ID!, trackId: ID!): Playlist!
+}
+
+type Subscription {
+  reviewAdded(albumId: ID!): Review!
+}
