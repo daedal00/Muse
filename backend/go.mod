@@ -1,6 +1,6 @@
 module github.com/daedal00/muse/backend
 
-go 1.24.2
+go 1.24.3
 
 require (
 	github.com/99designs/gqlgen v0.17.70
