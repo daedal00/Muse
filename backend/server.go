@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
@@ -36,7 +38,22 @@ func main() {
 	})
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+
+	// Wrap query with auth-middleware
+	http.Handle("/query", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// a) extract raw authorization header
+		authHeader := r.Header.Get("Authorization")
+		// b) extract "Bearer <userID>"
+		// TODO: swap from userID to JWT token
+		var userID string
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			userID = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		}
+		// c) Put userID into graph.UserIDKey context
+		ctx := context.WithValue(r.Context(), graph.UserIDKey, userID)
+		// d) call gqlgen server using r.WithContext(ctx) so resolvers can see it
+		srv.ServeHTTP(w, r.WithContext(ctx))
+	}))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))

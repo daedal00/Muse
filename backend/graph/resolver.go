@@ -10,6 +10,8 @@ type Resolver struct{
 	users []*model.User
 	passwordHashes map[string]string
 
+	albums []*model.Album
+	reviews []*model.Review
 }
 
 func NewResolver() *Resolver {

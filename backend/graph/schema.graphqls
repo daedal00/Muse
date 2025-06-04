@@ -5,7 +5,6 @@ enum ExternalSource {
   MUSICBRAINZ
 }
 
-
 # -----------------------------------------------------------
 # Core Domain Types
 # -----------------------------------------------------------
@@ -60,7 +59,7 @@ type Playlist {
   id: ID!
   title: String!
   description: String
-  coverImage: String # url stored in S3 bucket 
+  coverImage: String # url stored in S3 bucket
   tracks: TrackConnection!
   creator: User!
 }
@@ -117,7 +116,6 @@ type PageInfo {
   endCursor: String
   hasNextPage: Boolean!
 }
-
 
 # ---------------------------------------
 # External API Search Result Types
@@ -208,7 +206,8 @@ input CreatePlaylistInput {
 }
 
 type Mutation {
-  createUser(username: String!, email: String!, password: String!): User!
+  createUser(name: String!, email: String!, password: String!): User!
+  login(email: String!, password: String!): String! # Returns simple token (UserID)
   createReview(input: CreateReviewInput!): Review!
   createPlaylist(input: CreatePlaylistInput!): Playlist!
   addTrackToPlaylist(playlistId: ID!, trackId: ID!): Playlist!

@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/daedal00/muse/backend/auth"
 	"github.com/daedal00/muse/backend/graph/model"
@@ -14,10 +15,10 @@ import (
 )
 
 // CreateUser is the resolver for the createUser field.
-func (r *mutationResolver) CreateUser(ctx context.Context, username string, email string, password string) (*model.User, error) {
+func (r *mutationResolver) CreateUser(ctx context.Context, name string, email string, password string) (*model.User, error) {
 	// 1. Hash password
 	hash, err := auth.HashPassword(password)
-	if err != nil{
+	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
@@ -26,8 +27,8 @@ func (r *mutationResolver) CreateUser(ctx context.Context, username string, emai
 
 	// 3. Build GraphQL user model
 	user := &model.User{
-		ID: id,
-		Name: username,
+		ID:    id,
+		Name:  name,
 		Email: email,
 	}
 
@@ -39,10 +40,80 @@ func (r *mutationResolver) CreateUser(ctx context.Context, username string, emai
 	return user, nil
 }
 
+// Login is the resolver for the login field.
+func (r *mutationResolver) Login(ctx context.Context, email string, password string) (string, error) {
+	// 1) Lookup user in memory for now
+	var found *model.User
+	for _, u := range r.users {
+		if u.Email == email {
+			found = u
+			break
+		}
+	}
+	if found == nil {
+		return "", fmt.Errorf("invalid credentials")
+	}
+
+	// 2) Verify password against stored hash
+	hash := r.passwordHashes[found.ID]
+	if !auth.VerifyPassword(password, hash) {
+		return "", fmt.Errorf("invalid credentials")
+	}
+
+	// 3) Return userID as token
+	return found.ID, nil
+}
+
 // CreateReview is the resolver for the createReview field.
 func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateReviewInput) (*model.Review, error) {
-	panic(fmt.Errorf("not implemented: CreateReview - createReview"))
+	// 1) Extract UserID from Context
+	raw := ctx.Value(UserIDKey)
+	if raw == nil {
+		return nil, fmt.Errorf("unauthorized: userID not found in context")
+	}
+	currentUserID := raw.(string)
+
+	// 2) lookup userID in users
+	var reviewer *model.User
+	for _, u := range r.users {
+		if u.ID == currentUserID {
+			reviewer = u
+			break
+		}
+	}
+	if reviewer == nil {
+		return nil, fmt.Errorf("authenticated user not found in store")
+	}
+
+	// 3) Look up *model.Album by supplied input.AlbumID
+	var album *model.Album
+	for _, a := range r.albums {
+		if a.ID == input.AlbumID {
+			album = a
+			break
+		}
+	}
+	if album == nil {
+		return nil, fmt.Errorf("invalid album id (ID=%s)", input.AlbumID)
+	}
+
+	// 4) Build Review object
+	review := &model.Review{
+		ID: uuid.NewString(),
+		User: reviewer,
+		Album: album,
+		Rating: input.Rating,
+		ReviewText: input.ReviewText,
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+
+	// 5) Store in memory so future queries can view
+	r.reviews = append(r.reviews, review)
+
+	// 6) Return newly created review
+	return review, nil
 }
+
 
 // CreatePlaylist is the resolver for the createPlaylist field.
 func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.CreatePlaylistInput) (*model.Playlist, error) {
