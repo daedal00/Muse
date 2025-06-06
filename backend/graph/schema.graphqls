@@ -62,6 +62,7 @@ type Playlist {
   coverImage: String # url stored in S3 bucket
   tracks: TrackConnection!
   creator: User!
+  createdAt: DateTime!
 }
 
 # ---------------------------------------

@@ -93,6 +93,7 @@ type Playlist struct {
 	CoverImage  *string          `json:"coverImage,omitempty"`
 	Tracks      *TrackConnection `json:"tracks"`
 	Creator     *User            `json:"creator"`
+	CreatedAt   string           `json:"createdAt"`
 }
 
 type PlaylistConnection struct {

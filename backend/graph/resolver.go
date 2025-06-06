@@ -12,6 +12,7 @@ type Resolver struct{
 
 	albums []*model.Album
 	reviews []*model.Review
+	playlists []*model.Playlist
 }
 
 func NewResolver() *Resolver {

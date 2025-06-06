@@ -117,7 +117,41 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 
 // CreatePlaylist is the resolver for the createPlaylist field.
 func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.CreatePlaylistInput) (*model.Playlist, error) {
-	panic(fmt.Errorf("not implemented: CreatePlaylist - createPlaylist"))
+	// 1) Extract UserID from Context
+	raw := ctx.Value(UserIDKey)
+	if raw == nil {
+		return nil, fmt.Errorf("unauthorized: userID not found in context")
+	}
+	currentUserID := raw.(string)
+
+	// 2) lookup userID in users
+	var creator *model.User
+	for _, u := range r.users {
+		if u.ID == currentUserID {
+			creator = u
+			break
+		}
+	}
+	if creator == nil {
+		return nil, fmt.Errorf("authenticated user not found in store")
+	}
+
+	// 3) Create playlist object
+	playlist := &model.Playlist{
+		ID: uuid.NewString(),
+		Title: input.Title,
+		Description: input.Description,
+		CoverImage: input.CoverImage, // URL stored in S3 bucket
+		Creator: creator,
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+
+	// 4) store in memory
+	r.playlists = append(r.playlists, playlist)
+
+	// 5) Return newly created playlist
+	return playlist, nil
+
 }
 
 // AddTrackToPlaylist is the resolver for the addTrackToPlaylist field.
