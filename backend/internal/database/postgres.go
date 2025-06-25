@@ -63,7 +63,7 @@ func (db *PostgresDB) WithTransaction(ctx context.Context, fn func(pgx.Tx) error
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := fn(tx); err != nil {
 		return err

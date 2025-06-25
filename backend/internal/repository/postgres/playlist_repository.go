@@ -123,7 +123,7 @@ func (r *playlistRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	
 	// Delete all playlist tracks first
 	_, err = tx.Exec(ctx, `DELETE FROM playlist_tracks WHERE playlist_id = $1`, id)
@@ -233,7 +233,7 @@ func (r *playlistRepository) RemoveTrack(ctx context.Context, playlistID, trackI
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	
 	// Remove the track
 	removeQuery := `DELETE FROM playlist_tracks WHERE playlist_id = $1 AND track_id = $2`
@@ -301,7 +301,7 @@ func (r *playlistRepository) ReorderTracks(ctx context.Context, playlistID uuid.
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	
 	for trackID, position := range trackPositions {
 		updateQuery := `UPDATE playlist_tracks SET position = $1 WHERE playlist_id = $2 AND track_id = $3`

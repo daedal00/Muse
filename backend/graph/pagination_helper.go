@@ -77,9 +77,15 @@ func (p *PaginationHelper) GetAlbumsWithCursor(ctx context.Context, first int, a
 		// If we have a proper cursor with timestamp, use it for efficient pagination
 		if !cursor.CreatedAt.IsZero() {
 			albums, err = p.getAlbumsAfterCursor(ctx, cursor, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		} else {
 			// Fallback to position-based pagination
 			albums, err = p.getAlbumsAfterPosition(ctx, cursor.ID, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		}
 	} else {
 		// No cursor, get from beginning
@@ -181,8 +187,14 @@ func (p *PaginationHelper) GetTracksWithCursor(ctx context.Context, first int, a
 		
 		if !cursor.CreatedAt.IsZero() {
 			tracks, err = p.getTracksAfterCursor(ctx, cursor, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		} else {
 			tracks, err = p.getTracksAfterPosition(ctx, cursor.ID, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		}
 	} else {
 		tracks, err = p.repos.Track.List(ctx, first+1, 0)

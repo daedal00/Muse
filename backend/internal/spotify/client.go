@@ -14,7 +14,6 @@ import (
 
 // Client wraps the Spotify client with additional functionality
 type Client struct {
-	spotify     *spotify.Client
 	auth        *spotifyauth.Authenticator
 	clientID    string
 	clientSecret string
