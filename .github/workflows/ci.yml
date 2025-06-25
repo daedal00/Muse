@@ -88,7 +88,7 @@ jobs:
           path: backend/muse-backend
           retention-days: 7
 
-  # Job 3: Unit tests
+  # Job 3: Unit tests (without database dependencies)
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -109,18 +109,26 @@ jobs:
         working-directory: ./backend
         run: go mod download
 
-      - name: Run unit tests
+      - name: Run unit tests (excluding database-dependent tests)
         working-directory: ./backend
-        run: go test -short -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: |
+          echo "=== RUNNING UNIT TESTS (NO DATABASE) ==="
+          # Run tests that don't require database - exclude postgres repository tests
+          go test -short -race -coverprofile=coverage.out -covermode=atomic \
+            $(go list ./... | grep -v '/internal/repository/postgres')
 
       - name: Display test coverage summary
         working-directory: ./backend
         run: |
-          echo "=== TEST COVERAGE SUMMARY ==="
-          go tool cover -func=coverage.out | tail -1
-          echo ""
-          echo "=== DETAILED COVERAGE BY PACKAGE ==="
-          go tool cover -func=coverage.out | grep -v "total:"
+          echo "=== UNIT TEST COVERAGE SUMMARY ==="
+          if [ -f coverage.out ]; then
+            go tool cover -func=coverage.out | tail -1
+            echo ""
+            echo "=== DETAILED COVERAGE BY PACKAGE ==="
+            go tool cover -func=coverage.out | grep -v "total:"
+          else
+            echo "No coverage file generated - no unit tests ran"
+          fi
 
       - name: Upload coverage to Codecov (optional)
         uses: codecov/codecov-action@v4
@@ -205,7 +213,9 @@ jobs:
           # Use the test redis created by the redis service
           REDIS_ADDR: localhost:6379
           REDIS_PASSWORD: ""
-        run: go test -v -race -coverprofile=integration-coverage.out ./...
+        run: |
+          echo "=== RUNNING ALL TESTS (INCLUDING DATABASE-DEPENDENT) ==="
+          go test -v -race -coverprofile=integration-coverage.out ./...
 
       - name: Display integration test coverage summary
         working-directory: ./backend
@@ -244,11 +254,13 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Install gosec
-        run: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
 
-      - name: Run gosec security scanner
+      - name: Run security scan
         working-directory: ./backend
-        run: gosec -fmt sarif -out gosec-report.sarif ./...
+        run: |
+          echo "=== RUNNING SECURITY SCAN ==="
+          $HOME/go/bin/gosec -fmt=json -out=gosec-report.json -stdout -verbose=text ./...
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3

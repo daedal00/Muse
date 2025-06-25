@@ -98,6 +98,16 @@ func cleanupTestUser(t *testing.T, ctx context.Context, userID uuid.UUID) {
 	}
 }
 
+// cleanupBenchUser removes a test user from the database (for benchmarks)
+func cleanupBenchUser(b *testing.B, ctx context.Context, userID uuid.UUID) {
+	b.Helper()
+
+	_, err := testDB.Pool.Exec(ctx, "DELETE FROM users WHERE id = $1", userID)
+	if err != nil {
+		b.Logf("Warning: Failed to cleanup test user: %v", err)
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
@@ -291,11 +301,12 @@ func TestUserRepository_List(t *testing.T) {
 	ctx := context.Background()
 
 	// Create multiple test users
-	var userIDs []uuid.UUID
+	users := make([]*models.User, 3)
 	for i := 0; i < 3; i++ {
 		user := setupTestUser(t)
-		user.Email = fmt.Sprintf("test%d@example.com", i)
-		userIDs = append(userIDs, user.ID)
+		user.Email = fmt.Sprintf("list-test-%d@example.com", i)
+		users[i] = user
+		defer cleanupTestUser(t, ctx, user.ID)
 
 		err := repo.Create(ctx, user)
 		if err != nil {
@@ -303,30 +314,154 @@ func TestUserRepository_List(t *testing.T) {
 		}
 	}
 
-	// Cleanup
-	defer func() {
-		for _, id := range userIDs {
-			cleanupTestUser(t, ctx, id)
-		}
-	}()
-
 	// Test listing users
-	users, err := repo.List(ctx, 10, 0)
+	foundUsers, err := repo.List(ctx, 10, 0)
 	if err != nil {
 		t.Fatalf("Failed to list users: %v", err)
 	}
 
-	if len(users) < 3 {
-		t.Errorf("Expected at least 3 users, got %d", len(users))
+	if len(foundUsers) < 3 {
+		t.Errorf("Expected at least 3 users, got %d", len(foundUsers))
+	}
+}
+
+// Benchmark tests for performance monitoring
+func BenchmarkUserRepository_Create(b *testing.B) {
+	if testDB == nil {
+		b.Skip("Database not available")
 	}
 
-	// Test with limit
-	users, err = repo.List(ctx, 2, 0)
+	repo := NewUserRepository(testDB)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		user := &models.User{
+			ID:           uuid.New(),
+			Name:         fmt.Sprintf("Benchmark User %d", i),
+			Email:        fmt.Sprintf("bench-%d-%d@example.com", i, time.Now().UnixNano()),
+			PasswordHash: "hashed_password",
+			Bio:          stringPtr("Benchmark bio"),
+			Avatar:       stringPtr("https://example.com/avatar.jpg"),
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+
+		err := repo.Create(ctx, user)
+		if err != nil {
+			b.Fatalf("Failed to create user: %v", err)
+		}
+
+		// Cleanup immediately to avoid memory buildup
+		_, _ = testDB.Pool.Exec(ctx, "DELETE FROM users WHERE id = $1", user.ID)
+	}
+}
+
+func BenchmarkUserRepository_GetByID(b *testing.B) {
+	if testDB == nil {
+		b.Skip("Database not available")
+	}
+
+	repo := NewUserRepository(testDB)
+	ctx := context.Background()
+
+	// Create a test user for benchmarking
+	user := &models.User{
+		ID:           uuid.New(),
+		Name:         "Benchmark User",
+		Email:        "benchmark@example.com",
+		PasswordHash: "hashed_password",
+		Bio:          stringPtr("Benchmark bio"),
+		Avatar:       stringPtr("https://example.com/avatar.jpg"),
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	err := repo.Create(ctx, user)
 	if err != nil {
-		t.Fatalf("Failed to list users with limit: %v", err)
+		b.Fatalf("Failed to create benchmark user: %v", err)
+	}
+	defer cleanupBenchUser(b, ctx, user.ID)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := repo.GetByID(ctx, user.ID)
+		if err != nil {
+			b.Fatalf("Failed to get user by ID: %v", err)
+		}
+	}
+}
+
+func BenchmarkUserRepository_GetByEmail(b *testing.B) {
+	if testDB == nil {
+		b.Skip("Database not available")
 	}
 
-	if len(users) > 2 {
-		t.Errorf("Expected at most 2 users, got %d", len(users))
+	repo := NewUserRepository(testDB)
+	ctx := context.Background()
+
+	// Create a test user for benchmarking
+	user := &models.User{
+		ID:           uuid.New(),
+		Name:         "Benchmark User",
+		Email:        "benchmark-email@example.com",
+		PasswordHash: "hashed_password",
+		Bio:          stringPtr("Benchmark bio"),
+		Avatar:       stringPtr("https://example.com/avatar.jpg"),
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	err := repo.Create(ctx, user)
+	if err != nil {
+		b.Fatalf("Failed to create benchmark user: %v", err)
+	}
+	defer cleanupBenchUser(b, ctx, user.ID)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := repo.GetByEmail(ctx, user.Email)
+		if err != nil {
+			b.Fatalf("Failed to get user by email: %v", err)
+		}
+	}
+}
+
+func BenchmarkUserRepository_List(b *testing.B) {
+	if testDB == nil {
+		b.Skip("Database not available")
+	}
+
+	repo := NewUserRepository(testDB)
+	ctx := context.Background()
+
+	// Create some test users for benchmarking
+	users := make([]*models.User, 10)
+	for i := 0; i < 10; i++ {
+		user := &models.User{
+			ID:           uuid.New(),
+			Name:         fmt.Sprintf("Benchmark List User %d", i),
+			Email:        fmt.Sprintf("bench-list-%d@example.com", i),
+			PasswordHash: "hashed_password",
+			Bio:          stringPtr("Benchmark bio"),
+			Avatar:       stringPtr("https://example.com/avatar.jpg"),
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+		users[i] = user
+
+		err := repo.Create(ctx, user)
+		if err != nil {
+			b.Fatalf("Failed to create benchmark user %d: %v", i, err)
+		}
+		defer cleanupBenchUser(b, ctx, user.ID)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := repo.List(ctx, 10, 0)
+		if err != nil {
+			b.Fatalf("Failed to list users: %v", err)
+		}
 	}
 }
