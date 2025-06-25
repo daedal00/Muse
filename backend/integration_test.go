@@ -280,6 +280,11 @@ func TestHealthCheck(t *testing.T) {
 		SpotifyClientID:     "test-client-id",
 		SpotifyClientSecret: "test-secret",
 		DatabaseURL:         getEnvOrDefault("DATABASE_URL", "postgres://test:test@localhost/test"),
+		RedisURL:            getEnvOrDefault("REDIS_URL", "redis://localhost:6379"),
+		RedisHost:           getEnvOrDefault("REDIS_HOST", "localhost"),
+		RedisPort:           6379,
+		RedisPassword:       getEnvOrDefault("REDIS_PASSWORD", ""),
+		RedisDB:             0,
 		JWTSecret:           "test-secret-key",
 	}
 

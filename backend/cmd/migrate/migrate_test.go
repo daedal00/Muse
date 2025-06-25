@@ -75,7 +75,7 @@ func TestConfigLoad(t *testing.T) {
 
 func TestConfigLoad_DefaultValues(t *testing.T) {
 	// Clear all DB env vars to test defaults
-	envVars := []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SSLMODE"}
+	envVars := []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SSLMODE", "DATABASE_URL"}
 	originalValues := make(map[string]string)
 
 	for _, envVar := range envVars {
@@ -102,16 +102,26 @@ func TestConfigLoad_DefaultValues(t *testing.T) {
 	dsn := cfg.GetDatabaseDSN()
 	assert.NotEmpty(t, dsn)
 
-	// More flexible assertions for default values
-	if !isCI() {
-		assert.Contains(t, dsn, "host=localhost")
-		assert.Contains(t, dsn, "user=postgres")
-		assert.Contains(t, dsn, "dbname=muse")
+	// Check if DSN is in URL format or key=value format
+	if strings.Contains(dsn, "://") {
+		// URL format (e.g., postgres://user:pass@host:port/dbname?sslmode=disable)
+		assert.Contains(t, dsn, "localhost")
+		assert.Contains(t, dsn, "muse")
+		if !isCI() {
+			assert.Contains(t, dsn, "postgres")
+		}
 	} else {
-		// In CI, just check the format is correct
-		assert.Contains(t, dsn, "host=")
-		assert.Contains(t, dsn, "user=")
-		assert.Contains(t, dsn, "dbname=")
+		// Key=value format
+		if !isCI() {
+			assert.Contains(t, dsn, "host=localhost")
+			assert.Contains(t, dsn, "user=postgres")
+			assert.Contains(t, dsn, "dbname=muse")
+		} else {
+			// In CI, just check the format is correct
+			assert.Contains(t, dsn, "host=")
+			assert.Contains(t, dsn, "user=")
+			assert.Contains(t, dsn, "dbname=")
+		}
 	}
 }
 

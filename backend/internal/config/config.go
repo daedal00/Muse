@@ -41,6 +41,17 @@ func Load() (*Config, error) {
 	// Load .env file if it exists
 	_ = godotenv.Load(".env")
 
+	// Handle Redis URL configuration - check multiple environment variables
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		// Check for REDIS_ADDR as alternative (used in some CI environments)
+		if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
+			redisURL = "redis://" + redisAddr
+		} else {
+			redisURL = "redis://localhost:6379"
+		}
+	}
+
 	config := &Config{
 		Port:        getEnv("PORT", "8080"),
 		Environment: getEnv("ENVIRONMENT", "development"),
@@ -56,7 +67,7 @@ func Load() (*Config, error) {
 		DBPassword:  os.Getenv("DB_PASSWORD"),
 		DBSSLMode:   getEnv("DB_SSL_MODE", "prefer"),
 
-		RedisURL:      getEnv("REDIS_URL", "redis://localhost:6379"),
+		RedisURL:      redisURL,
 		RedisHost:     getEnv("REDIS_HOST", "localhost"),
 		RedisPort:     getEnvAsInt("REDIS_PORT", 6379),
 		RedisPassword: os.Getenv("REDIS_PASSWORD"),
