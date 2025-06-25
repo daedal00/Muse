@@ -128,7 +128,10 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 		tracks, trackErr := r.repos.Track.GetByAlbumID(cacheCtx, albumID, 50, 0)
 		if trackErr == nil && len(tracks) > 0 {
 			// Add the first track as recently played (representing album interaction)
-			r.repos.MusicCache.AddToRecentlyPlayed(cacheCtx, userID, tracks[0])
+			if err := r.repos.MusicCache.AddToRecentlyPlayed(cacheCtx, userID, tracks[0]); err != nil {
+				// Log the error but don't fail the mutation
+				fmt.Printf("Warning: Failed to add track to recently played: %v\n", err)
+			}
 		}
 	}()
 
@@ -314,7 +317,7 @@ func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string)
 	}
 
 	return &model.AlbumConnection{
-		TotalCount: int32(totalCount),
+		TotalCount: safeLenToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -371,7 +374,7 @@ func (r *queryResolver) Tracks(ctx context.Context, first *int32, after *string)
 	}
 
 	return &model.TrackConnection{
-		TotalCount: int32(totalCount),
+		TotalCount: safeLenToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -428,7 +431,7 @@ func (r *queryResolver) Playlists(ctx context.Context, first *int32, after *stri
 	}
 
 	return &model.PlaylistConnection{
-		TotalCount: int32(totalCount),
+		TotalCount: safeLenToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -485,7 +488,7 @@ func (r *queryResolver) Reviews(ctx context.Context, first *int32, after *string
 	}
 
 	return &model.ReviewConnection{
-		TotalCount: int32(totalCount),
+		TotalCount: safeLenToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -623,7 +626,10 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 	}
 
 	// Cache the results for faster future searches
-	r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "albums", albumResults)
+	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "albums", albumResults); err != nil {
+		// Log the error but don't fail the request
+		fmt.Printf("Warning: Failed to cache album search results: %v\n", err)
+	}
 
 	return albumResults, nil
 }
@@ -670,7 +676,10 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	}
 
 	// Cache the results for faster future searches
-	r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "artists", artistResults)
+	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "artists", artistResults); err != nil {
+		// Log the error but don't fail the request
+		fmt.Printf("Warning: Failed to cache artist search results: %v\n", err)
+	}
 
 	return artistResults, nil
 }

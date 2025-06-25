@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"math"
 	"time"
 
 	"github.com/daedal00/muse/backend/graph/model"
@@ -8,6 +9,22 @@ import (
 )
 
 // Helper functions to convert between database models and GraphQL models
+
+// safeIntToInt32 safely converts int to int32, clamping to valid range
+func safeIntToInt32(val int) int32 {
+	if val > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if val < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(val)
+}
+
+// safeLenToInt32 safely converts slice length to int32
+func safeLenToInt32(length int) int32 {
+	return safeIntToInt32(length)
+}
 
 func dbUserToGraphQL(dbUser *models.User) *model.User {
 	if dbUser == nil {
@@ -63,13 +80,13 @@ func dbTrackToGraphQL(dbTrack *models.Track) *model.Track {
 
 	var duration *int32
 	if dbTrack.DurationMs != nil {
-		val := int32(*dbTrack.DurationMs)
+		val := safeIntToInt32(*dbTrack.DurationMs)
 		duration = &val
 	}
 
 	var trackNumber *int32
 	if dbTrack.TrackNumber != nil {
-		val := int32(*dbTrack.TrackNumber)
+		val := safeIntToInt32(*dbTrack.TrackNumber)
 		trackNumber = &val
 	}
 
@@ -92,7 +109,7 @@ func dbReviewToGraphQL(dbReview *models.Review) *model.Review {
 		ID:         dbReview.ID.String(),
 		User:       dbUserToGraphQL(dbReview.User),
 		Album:      dbAlbumToGraphQL(dbReview.Album),
-		Rating:     int32(dbReview.Rating),
+		Rating:     safeIntToInt32(dbReview.Rating),
 		ReviewText: dbReview.ReviewText,
 		CreatedAt:  dbReview.CreatedAt.Format(time.RFC3339),
 	}
