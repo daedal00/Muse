@@ -6,7 +6,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/daedal00/muse/backend/graph/model"
+	"github.com/daedal00/muse/backend/internal/config"
+	"github.com/daedal00/muse/backend/internal/database"
+	"github.com/daedal00/muse/backend/internal/repository"
+	"github.com/daedal00/muse/backend/internal/repository/postgres"
+	redisrepo "github.com/daedal00/muse/backend/internal/repository/redis"
 	"github.com/daedal00/muse/backend/internal/spotify"
 )
 
@@ -14,50 +18,81 @@ import (
 //
 // It serves as dependency injection for your app, add any dependencies you require here.
 
-type Resolver struct{
-	users []*model.User
-	passwordHashes map[string]string
-
-	albums []*model.Album
-	reviews []*model.Review
-	playlists []*model.Playlist
-	
-	// Spotify client and services for external API calls
-	spotifyClient *spotify.Client
-	spotifyServices *spotify.Services
+// Resolver is the root resolver struct
+type Resolver struct {
+	repos              *repository.Repositories
+	spotifyServices    *spotify.Services
+	subscriptionMgr    *SubscriptionManager
+	paginationHelper   *PaginationHelper
+	config             *config.Config
 }
 
-func NewResolver(clientID, clientSecret string) *Resolver {
-	// Create Spotify client with the new implementation
-	spClient := spotify.NewClient(spotify.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURL:  "http://localhost:8080/callback",
-		Scopes: []string{
-			// Add scopes as needed for your application
-		},
-	})
-
-	// Get client credentials client for public data access
-	ctx := context.Background()
-	publicClient, err := spClient.GetClientCredentialsClient(ctx)
+// NewResolver creates a new GraphQL resolver with all required dependencies
+func NewResolver(cfg *config.Config) (*Resolver, error) {
+	// Initialize PostgreSQL database
+	postgresDB, err := database.NewPostgresConnection(cfg.DatabaseURL)
 	if err != nil {
-		log.Printf("Warning: Failed to initialize Spotify client: %v", err)
-		// Continue without Spotify for now
+		return nil, err
 	}
 
-	var services *spotify.Services
-	if publicClient != nil {
-		services = spotify.NewServices(publicClient)
+	// Initialize Redis client
+	redisClient, err := database.NewRedisConnection(cfg.RedisURL)
+	if err != nil {
+		return nil, err
 	}
+
+	// Initialize repositories (using Redis for sessions, PostgreSQL for others)
+	repos := &repository.Repositories{
+		User:       postgres.NewUserRepository(postgresDB),
+		Artist:     postgres.NewArtistRepository(postgresDB),
+		Album:      postgres.NewAlbumRepository(postgresDB),
+		Track:      postgres.NewTrackRepository(postgresDB),
+		Review:     postgres.NewReviewRepository(postgresDB),
+		Playlist:   postgres.NewPlaylistRepository(postgresDB),
+		Session:    redisrepo.NewSessionRepository(redisClient),   // Using Redis for sessions
+		MusicCache: redisrepo.NewMusicCacheRepository(redisClient), // Using Redis for music caching
+	}
+
+	// Initialize Spotify services (optional)
+	var spotifyServices *spotify.Services
+	if cfg.SpotifyClientID != "" && cfg.SpotifyClientSecret != "" {
+		// Create a basic Spotify client for client credentials flow (public data)
+		spotifyClient := spotify.NewClient(spotify.Config{
+			ClientID:     cfg.SpotifyClientID,
+			ClientSecret: cfg.SpotifyClientSecret,
+			RedirectURL:  "http://localhost:8080/callback", // Default redirect for client credentials
+			Scopes:       []string{}, // No scopes needed for client credentials flow
+		})
+		
+		// Get client credentials client for public API access
+		ctx := context.Background()
+		client, err := spotifyClient.GetClientCredentialsClient(ctx)
+		if err != nil {
+			// Log error but don't fail - Spotify is optional
+			log.Printf("Warning: Failed to initialize Spotify client: %v", err)
+		} else {
+			spotifyServices = spotify.NewServices(client)
+		}
+	}
+
+	// Initialize subscription manager
+	subscriptionMgr := NewSubscriptionManager(redisClient)
+
+	// Initialize pagination helper
+	paginationHelper := NewPaginationHelper(repos)
 
 	return &Resolver{
-		users: make([]*model.User, 0),
-		passwordHashes: make(map[string]string),
-		albums: make([]*model.Album, 0),
-		reviews: make([]*model.Review, 0),
-		playlists: make([]*model.Playlist, 0),
-		spotifyClient: spClient,
-		spotifyServices: services,
-	}
+		repos:              repos,
+		spotifyServices:    spotifyServices,
+		subscriptionMgr:    subscriptionMgr,
+		paginationHelper:   paginationHelper,
+		config:             cfg,
+	}, nil
+}
+
+// Close properly closes all database connections
+func (r *Resolver) Close() error {
+	// Note: In a production system, you'd want to track both connections
+	// and close them properly. For now, we'll add this placeholder.
+	return nil
 }

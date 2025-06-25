@@ -185,6 +185,8 @@ type Query {
   reviews(first: Int, after: String): ReviewConnection!
   review(id: ID!): Review
 
+  # User activity queries
+  recentlyPlayed(limit: Int = 20): [Track!]! # User's recently played tracks from cache
   # External Search Queries
   searchAlbums(input: AlbumSearchInput!): [AlbumSearchResult!]!
   searchArtists(input: ArtistSearchInput!): [ArtistSearchResult!]!
