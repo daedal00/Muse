@@ -77,4 +77,4 @@ func main() {
 	default:
 		log.Fatal("Unknown command. Use: up, down, drop, version, or force")
 	}
-} 
+}

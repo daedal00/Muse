@@ -65,7 +65,7 @@ func main() {
 		authHeader := r.Header.Get("Authorization")
 		baseCtx := r.Context()
 		newCtx := baseCtx
-		
+
 		// Extract "Bearer <jwtToken>"
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokStr := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))

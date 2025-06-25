@@ -14,8 +14,8 @@ import (
 
 // Client wraps the Spotify client with additional functionality
 type Client struct {
-	auth        *spotifyauth.Authenticator
-	clientID    string
+	auth         *spotifyauth.Authenticator
+	clientID     string
 	clientSecret string
 }
 
@@ -46,11 +46,11 @@ func NewClientFromEnv() *Client {
 	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
 	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
 	redirectURL := os.Getenv("SPOTIFY_REDIRECT_URL")
-	
+
 	if clientID == "" || clientSecret == "" {
 		log.Fatal("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
 	}
-	
+
 	if redirectURL == "" {
 		redirectURL = "http://localhost:8080/callback"
 	}
@@ -77,7 +77,7 @@ func (c *Client) GetClientCredentialsClient(ctx context.Context) (*spotify.Clien
 		ClientSecret: c.clientSecret,
 		TokenURL:     spotifyauth.TokenURL,
 	}
-	
+
 	token, err := config.Token(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get token: %w", err)
@@ -304,14 +304,14 @@ type PaginationHelper struct {
 // GetAllPlaylistItems gets all items from a playlist across all pages
 func (p *PaginationHelper) GetAllPlaylistItems(ctx context.Context, playlistID spotify.ID) ([]spotify.PlaylistItem, error) {
 	var allItems []spotify.PlaylistItem
-	
+
 	items, err := p.client.GetPlaylistItems(ctx, playlistID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	allItems = append(allItems, items.Items...)
-	
+
 	for {
 		err = p.client.NextPage(ctx, items)
 		if err == spotify.ErrNoMorePages {
@@ -322,7 +322,7 @@ func (p *PaginationHelper) GetAllPlaylistItems(ctx context.Context, playlistID s
 		}
 		allItems = append(allItems, items.Items...)
 	}
-	
+
 	return allItems, nil
 }
 

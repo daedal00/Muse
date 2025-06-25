@@ -39,13 +39,13 @@ func (p *PaginationHelper) DecodeCursor(cursor string) (*CursorInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid cursor format")
 	}
-	
+
 	parts := string(data)
 	// Try to parse as new format: id:timestamp:position
 	var id string
 	var timestamp int64
 	var position int
-	
+
 	n, err := fmt.Sscanf(parts, "%36s:%d:%d", &id, &timestamp, &position)
 	if err != nil || n != 3 {
 		// Fallback to old format (just ID)
@@ -53,9 +53,9 @@ func (p *PaginationHelper) DecodeCursor(cursor string) (*CursorInfo, error) {
 		timestamp = 0
 		position = 0
 	}
-	
+
 	createdAt := time.Unix(timestamp, 0)
-	
+
 	return &CursorInfo{
 		ID:        id,
 		CreatedAt: createdAt,
@@ -67,13 +67,13 @@ func (p *PaginationHelper) DecodeCursor(cursor string) (*CursorInfo, error) {
 func (p *PaginationHelper) GetAlbumsWithCursor(ctx context.Context, first int, after *string) ([]*models.Album, bool, error) {
 	var albums []*models.Album
 	var err error
-	
+
 	if after != nil && *after != "" {
 		cursor, err := p.DecodeCursor(*after)
 		if err != nil {
 			return nil, false, err
 		}
-		
+
 		// If we have a proper cursor with timestamp, use it for efficient pagination
 		if !cursor.CreatedAt.IsZero() {
 			albums, err = p.getAlbumsAfterCursor(ctx, cursor, first+1)
@@ -91,17 +91,17 @@ func (p *PaginationHelper) GetAlbumsWithCursor(ctx context.Context, first int, a
 		// No cursor, get from beginning
 		albums, err = p.repos.Album.List(ctx, first+1, 0)
 	}
-	
+
 	if err != nil {
 		return nil, false, err
 	}
-	
+
 	// Check if there's a next page
 	hasNextPage := len(albums) > first
 	if hasNextPage {
 		albums = albums[:first]
 	}
-	
+
 	return albums, hasNextPage, nil
 }
 
@@ -109,23 +109,23 @@ func (p *PaginationHelper) GetAlbumsWithCursor(ctx context.Context, first int, a
 func (p *PaginationHelper) getAlbumsAfterCursor(ctx context.Context, cursor *CursorInfo, limit int) ([]*models.Album, error) {
 	// This would ideally be a custom repository method for efficient timestamp-based pagination
 	// For now, we'll use a combination of approaches
-	
+
 	// Get all albums and filter (this is not optimal for large datasets)
 	// In production, you'd want a custom SQL query with WHERE created_at < ? ORDER BY created_at DESC
 	allAlbums, err := p.repos.Album.List(ctx, 1000, 0) // Get a reasonable batch
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var filteredAlbums []*models.Album
 	found := false
-	
+
 	for _, album := range allAlbums {
 		if album.ID.String() == cursor.ID {
 			found = true
 			continue
 		}
-		
+
 		if found {
 			filteredAlbums = append(filteredAlbums, album)
 			if len(filteredAlbums) >= limit {
@@ -133,7 +133,7 @@ func (p *PaginationHelper) getAlbumsAfterCursor(ctx context.Context, cursor *Cur
 			}
 		}
 	}
-	
+
 	return filteredAlbums, nil
 }
 
@@ -144,7 +144,7 @@ func (p *PaginationHelper) getAlbumsAfterPosition(ctx context.Context, cursorID 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	position := -1
 	for i, album := range albums {
 		if album.ID.String() == cursorID {
@@ -152,23 +152,23 @@ func (p *PaginationHelper) getAlbumsAfterPosition(ctx context.Context, cursorID 
 			break
 		}
 	}
-	
+
 	if position == -1 {
 		// Cursor not found, return empty result
 		return []*models.Album{}, nil
 	}
-	
+
 	// Return albums after the cursor position
 	startIdx := position + 1
 	endIdx := startIdx + limit
 	if endIdx > len(albums) {
 		endIdx = len(albums)
 	}
-	
+
 	if startIdx >= len(albums) {
 		return []*models.Album{}, nil
 	}
-	
+
 	return albums[startIdx:endIdx], nil
 }
 
@@ -178,13 +178,13 @@ func (p *PaginationHelper) getAlbumsAfterPosition(ctx context.Context, cursorID 
 func (p *PaginationHelper) GetTracksWithCursor(ctx context.Context, first int, after *string) ([]*models.Track, bool, error) {
 	var tracks []*models.Track
 	var err error
-	
+
 	if after != nil && *after != "" {
 		cursor, err := p.DecodeCursor(*after)
 		if err != nil {
 			return nil, false, err
 		}
-		
+
 		if !cursor.CreatedAt.IsZero() {
 			tracks, err = p.getTracksAfterCursor(ctx, cursor, first+1)
 			if err != nil {
@@ -199,16 +199,16 @@ func (p *PaginationHelper) GetTracksWithCursor(ctx context.Context, first int, a
 	} else {
 		tracks, err = p.repos.Track.List(ctx, first+1, 0)
 	}
-	
+
 	if err != nil {
 		return nil, false, err
 	}
-	
+
 	hasNextPage := len(tracks) > first
 	if hasNextPage {
 		tracks = tracks[:first]
 	}
-	
+
 	return tracks, hasNextPage, nil
 }
 
@@ -218,16 +218,16 @@ func (p *PaginationHelper) getTracksAfterCursor(ctx context.Context, cursor *Cur
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var filteredTracks []*models.Track
 	found := false
-	
+
 	for _, track := range allTracks {
 		if track.ID.String() == cursor.ID {
 			found = true
 			continue
 		}
-		
+
 		if found {
 			filteredTracks = append(filteredTracks, track)
 			if len(filteredTracks) >= limit {
@@ -235,7 +235,7 @@ func (p *PaginationHelper) getTracksAfterCursor(ctx context.Context, cursor *Cur
 			}
 		}
 	}
-	
+
 	return filteredTracks, nil
 }
 
@@ -245,7 +245,7 @@ func (p *PaginationHelper) getTracksAfterPosition(ctx context.Context, cursorID 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	position := -1
 	for i, track := range tracks {
 		if track.ID.String() == cursorID {
@@ -253,21 +253,21 @@ func (p *PaginationHelper) getTracksAfterPosition(ctx context.Context, cursorID 
 			break
 		}
 	}
-	
+
 	if position == -1 {
 		return []*models.Track{}, nil
 	}
-	
+
 	startIdx := position + 1
 	endIdx := startIdx + limit
 	if endIdx > len(tracks) {
 		endIdx = len(tracks)
 	}
-	
+
 	if startIdx >= len(tracks) {
 		return []*models.Track{}, nil
 	}
-	
+
 	return tracks[startIdx:endIdx], nil
 }
 
@@ -275,13 +275,13 @@ func (p *PaginationHelper) getTracksAfterPosition(ctx context.Context, cursorID 
 func (p *PaginationHelper) GetReviewsWithCursor(ctx context.Context, first int, after *string) ([]*models.Review, bool, error) {
 	var reviews []*models.Review
 	var err error
-	
+
 	if after != nil && *after != "" {
 		cursor, err := p.DecodeCursor(*after)
 		if err != nil {
 			return nil, false, err
 		}
-		
+
 		if !cursor.CreatedAt.IsZero() {
 			reviews, err = p.getReviewsAfterCursor(ctx, cursor, first+1)
 			if err != nil {
@@ -296,16 +296,16 @@ func (p *PaginationHelper) GetReviewsWithCursor(ctx context.Context, first int, 
 	} else {
 		reviews, err = p.repos.Review.List(ctx, first+1, 0)
 	}
-	
+
 	if err != nil {
 		return nil, false, err
 	}
-	
+
 	hasNextPage := len(reviews) > first
 	if hasNextPage {
 		reviews = reviews[:first]
 	}
-	
+
 	return reviews, hasNextPage, nil
 }
 
@@ -315,16 +315,16 @@ func (p *PaginationHelper) getReviewsAfterCursor(ctx context.Context, cursor *Cu
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var filteredReviews []*models.Review
 	found := false
-	
+
 	for _, review := range allReviews {
 		if review.ID.String() == cursor.ID {
 			found = true
 			continue
 		}
-		
+
 		if found {
 			filteredReviews = append(filteredReviews, review)
 			if len(filteredReviews) >= limit {
@@ -332,7 +332,7 @@ func (p *PaginationHelper) getReviewsAfterCursor(ctx context.Context, cursor *Cu
 			}
 		}
 	}
-	
+
 	return filteredReviews, nil
 }
 
@@ -342,7 +342,7 @@ func (p *PaginationHelper) getReviewsAfterPosition(ctx context.Context, cursorID
 	if err != nil {
 		return nil, err
 	}
-	
+
 	position := -1
 	for i, review := range reviews {
 		if review.ID.String() == cursorID {
@@ -350,21 +350,21 @@ func (p *PaginationHelper) getReviewsAfterPosition(ctx context.Context, cursorID
 			break
 		}
 	}
-	
+
 	if position == -1 {
 		return []*models.Review{}, nil
 	}
-	
+
 	startIdx := position + 1
 	endIdx := startIdx + limit
 	if endIdx > len(reviews) {
 		endIdx = len(reviews)
 	}
-	
+
 	if startIdx >= len(reviews) {
 		return []*models.Review{}, nil
 	}
-	
+
 	return reviews[startIdx:endIdx], nil
 }
 
@@ -372,13 +372,13 @@ func (p *PaginationHelper) getReviewsAfterPosition(ctx context.Context, cursorID
 func (p *PaginationHelper) GetPlaylistsWithCursor(ctx context.Context, first int, after *string) ([]*models.Playlist, bool, error) {
 	var playlists []*models.Playlist
 	var err error
-	
+
 	if after != nil && *after != "" {
 		cursor, err := p.DecodeCursor(*after)
 		if err != nil {
 			return nil, false, err
 		}
-		
+
 		if !cursor.CreatedAt.IsZero() {
 			playlists, err = p.getPlaylistsAfterCursor(ctx, cursor, first+1)
 			if err != nil {
@@ -393,16 +393,16 @@ func (p *PaginationHelper) GetPlaylistsWithCursor(ctx context.Context, first int
 	} else {
 		playlists, err = p.repos.Playlist.List(ctx, first+1, 0)
 	}
-	
+
 	if err != nil {
 		return nil, false, err
 	}
-	
+
 	hasNextPage := len(playlists) > first
 	if hasNextPage {
 		playlists = playlists[:first]
 	}
-	
+
 	return playlists, hasNextPage, nil
 }
 
@@ -412,16 +412,16 @@ func (p *PaginationHelper) getPlaylistsAfterCursor(ctx context.Context, cursor *
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var filteredPlaylists []*models.Playlist
 	found := false
-	
+
 	for _, playlist := range allPlaylists {
 		if playlist.ID.String() == cursor.ID {
 			found = true
 			continue
 		}
-		
+
 		if found {
 			filteredPlaylists = append(filteredPlaylists, playlist)
 			if len(filteredPlaylists) >= limit {
@@ -429,7 +429,7 @@ func (p *PaginationHelper) getPlaylistsAfterCursor(ctx context.Context, cursor *
 			}
 		}
 	}
-	
+
 	return filteredPlaylists, nil
 }
 
@@ -439,7 +439,7 @@ func (p *PaginationHelper) getPlaylistsAfterPosition(ctx context.Context, cursor
 	if err != nil {
 		return nil, err
 	}
-	
+
 	position := -1
 	for i, playlist := range playlists {
 		if playlist.ID.String() == cursorID {
@@ -447,20 +447,20 @@ func (p *PaginationHelper) getPlaylistsAfterPosition(ctx context.Context, cursor
 			break
 		}
 	}
-	
+
 	if position == -1 {
 		return []*models.Playlist{}, nil
 	}
-	
+
 	startIdx := position + 1
 	endIdx := startIdx + limit
 	if endIdx > len(playlists) {
 		endIdx = len(playlists)
 	}
-	
+
 	if startIdx >= len(playlists) {
 		return []*models.Playlist{}, nil
 	}
-	
+
 	return playlists[startIdx:endIdx], nil
-} 
+}

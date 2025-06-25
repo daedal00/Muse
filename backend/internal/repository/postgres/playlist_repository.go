@@ -24,16 +24,16 @@ func (r *playlistRepository) Create(ctx context.Context, playlist *models.Playli
 		INSERT INTO playlists (id, title, description, cover_image, creator_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	
+
 	_, err := r.db.Pool.Exec(ctx, query,
 		playlist.ID, playlist.Title, playlist.Description, playlist.CoverImage,
 		playlist.CreatorID, playlist.CreatedAt, playlist.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to create playlist: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -43,20 +43,20 @@ func (r *playlistRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 		FROM playlists 
 		WHERE id = $1
 	`
-	
+
 	playlist := &models.Playlist{}
 	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
 		&playlist.ID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
 		&playlist.CreatorID, &playlist.CreatedAt, &playlist.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("playlist not found")
 		}
 		return nil, fmt.Errorf("failed to get playlist: %w", err)
 	}
-	
+
 	return playlist, nil
 }
 
@@ -68,13 +68,13 @@ func (r *playlistRepository) GetByCreatorID(ctx context.Context, creatorID uuid.
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`
-	
+
 	rows, err := r.db.Pool.Query(ctx, query, creatorID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list playlists by creator: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var playlists []*models.Playlist
 	for rows.Next() {
 		playlist := &models.Playlist{}
@@ -87,11 +87,11 @@ func (r *playlistRepository) GetByCreatorID(ctx context.Context, creatorID uuid.
 		}
 		playlists = append(playlists, playlist)
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating playlists: %w", err)
 	}
-	
+
 	return playlists, nil
 }
 
@@ -101,19 +101,19 @@ func (r *playlistRepository) Update(ctx context.Context, playlist *models.Playli
 		SET title = $2, description = $3, cover_image = $4, updated_at = NOW()
 		WHERE id = $1
 	`
-	
+
 	result, err := r.db.Pool.Exec(ctx, query,
 		playlist.ID, playlist.Title, playlist.Description, playlist.CoverImage,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to update playlist: %w", err)
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		return fmt.Errorf("playlist not found")
 	}
-	
+
 	return nil
 }
 
@@ -124,27 +124,27 @@ func (r *playlistRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	
+
 	// Delete all playlist tracks first
 	_, err = tx.Exec(ctx, `DELETE FROM playlist_tracks WHERE playlist_id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete playlist tracks: %w", err)
 	}
-	
+
 	// Delete the playlist
 	result, err := tx.Exec(ctx, `DELETE FROM playlists WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete playlist: %w", err)
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		return fmt.Errorf("playlist not found")
 	}
-	
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -155,13 +155,13 @@ func (r *playlistRepository) List(ctx context.Context, limit, offset int) ([]*mo
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
 	`
-	
+
 	rows, err := r.db.Pool.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list playlists: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var playlists []*models.Playlist
 	for rows.Next() {
 		playlist := &models.Playlist{}
@@ -174,11 +174,11 @@ func (r *playlistRepository) List(ctx context.Context, limit, offset int) ([]*mo
 		}
 		playlists = append(playlists, playlist)
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating playlists: %w", err)
 	}
-	
+
 	return playlists, nil
 }
 
@@ -202,17 +202,17 @@ func (r *playlistRepository) AddTrack(ctx context.Context, playlistID, trackID u
 			return fmt.Errorf("failed to shift track positions: %w", err)
 		}
 	}
-	
+
 	insertQuery := `
 		INSERT INTO playlist_tracks (id, playlist_id, track_id, position, added_at)
 		VALUES ($1, $2, $3, $4, NOW())
 	`
-	
+
 	_, err := r.db.Pool.Exec(ctx, insertQuery, uuid.New(), playlistID, trackID, position)
 	if err != nil {
 		return fmt.Errorf("failed to add track to playlist: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -227,36 +227,36 @@ func (r *playlistRepository) RemoveTrack(ctx context.Context, playlistID, trackI
 		}
 		return fmt.Errorf("failed to get track position: %w", err)
 	}
-	
+
 	// Start a transaction to remove track and shift positions
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	
+
 	// Remove the track
 	removeQuery := `DELETE FROM playlist_tracks WHERE playlist_id = $1 AND track_id = $2`
 	result, err := tx.Exec(ctx, removeQuery, playlistID, trackID)
 	if err != nil {
 		return fmt.Errorf("failed to remove track from playlist: %w", err)
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		return fmt.Errorf("track not found in playlist")
 	}
-	
+
 	// Shift remaining tracks down
 	shiftQuery := `UPDATE playlist_tracks SET position = position - 1 WHERE playlist_id = $1 AND position > $2`
 	_, err = tx.Exec(ctx, shiftQuery, playlistID, position)
 	if err != nil {
 		return fmt.Errorf("failed to shift track positions: %w", err)
 	}
-	
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -269,13 +269,13 @@ func (r *playlistRepository) GetTracks(ctx context.Context, playlistID uuid.UUID
 		ORDER BY pt.position ASC
 		LIMIT $2 OFFSET $3
 	`
-	
+
 	rows, err := r.db.Pool.Query(ctx, query, playlistID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get playlist tracks: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var tracks []*models.Track
 	for rows.Next() {
 		track := &models.Track{}
@@ -288,11 +288,11 @@ func (r *playlistRepository) GetTracks(ctx context.Context, playlistID uuid.UUID
 		}
 		tracks = append(tracks, track)
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating tracks: %w", err)
 	}
-	
+
 	return tracks, nil
 }
 
@@ -302,7 +302,7 @@ func (r *playlistRepository) ReorderTracks(ctx context.Context, playlistID uuid.
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	
+
 	for trackID, position := range trackPositions {
 		updateQuery := `UPDATE playlist_tracks SET position = $1 WHERE playlist_id = $2 AND track_id = $3`
 		_, err := tx.Exec(ctx, updateQuery, position, playlistID, trackID)
@@ -310,10 +310,10 @@ func (r *playlistRepository) ReorderTracks(ctx context.Context, playlistID uuid.
 			return fmt.Errorf("failed to update track position: %w", err)
 		}
 	}
-	
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	
+
 	return nil
-} 
+}

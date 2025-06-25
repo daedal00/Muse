@@ -74,4 +74,4 @@ func (db *PostgresDB) WithTransaction(ctx context.Context, fn func(pgx.Tx) error
 	}
 
 	return nil
-} 
+}

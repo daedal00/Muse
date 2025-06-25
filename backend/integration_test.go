@@ -34,7 +34,7 @@ type GraphQLRequest struct {
 type GraphQLResponse struct {
 	Data   interface{} `json:"data"`
 	Errors []struct {
-		Message string `json:"message"`
+		Message string        `json:"message"`
 		Path    []interface{} `json:"path"`
 	} `json:"errors"`
 }
@@ -58,7 +58,7 @@ func setupGraphQLHandler(resolver *graph.Resolver, cfg *config.Config) http.Hand
 		authHeader := r.Header.Get("Authorization")
 		baseCtx := r.Context()
 		newCtx := baseCtx
-		
+
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokStr := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 			token, err := jwt.ParseWithClaims(tokStr, &auth.CustomClaims{}, func(t *jwt.Token) (interface{}, error) {
@@ -91,7 +91,7 @@ func executeGraphQL(t *testing.T, handler http.Handler, req GraphQLRequest, auth
 
 	httpReq := httptest.NewRequest(http.MethodPost, "/query", bytes.NewReader(reqBody))
 	httpReq.Header.Set("Content-Type", "application/json")
-	
+
 	if authToken != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+authToken)
 	}
@@ -116,7 +116,7 @@ func TestGraphQLIntrospection(t *testing.T) {
 	cfg := &config.Config{
 		Port:        "8080",
 		Environment: "test",
-		
+
 		SpotifyClientID:     getEnvOrDefault("SPOTIFY_CLIENT_ID", "test-client-id"),
 		SpotifyClientSecret: getEnvOrDefault("SPOTIFY_CLIENT_SECRET", "test-secret"),
 
@@ -163,7 +163,7 @@ func TestGraphQLIntrospection(t *testing.T) {
 
 		resp := executeGraphQL(t, handler, req, "")
 		assert.Empty(t, resp.Errors, "Expected no errors in introspection query")
-		
+
 		data := resp.Data.(map[string]interface{})
 		schema := data["__schema"].(map[string]interface{})
 		types := schema["types"].([]interface{})
@@ -193,11 +193,11 @@ func TestGraphQLIntrospection(t *testing.T) {
 			t.Logf("Create user errors (may be expected if database not available): %+v", resp.Errors)
 			return // Skip validation if database not available
 		}
-		
+
 		data := resp.Data.(map[string]interface{})
 		user := data["createUser"].(map[string]interface{})
 		assert.NotEmpty(t, user["id"])
 		assert.Equal(t, "Integration Test User", user["name"])
 		assert.Equal(t, "integration@test.com", user["email"])
 	})
-} 
+}

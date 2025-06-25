@@ -20,11 +20,11 @@ import (
 
 // Resolver is the root resolver struct
 type Resolver struct {
-	repos              *repository.Repositories
-	spotifyServices    *spotify.Services
-	subscriptionMgr    *SubscriptionManager
-	paginationHelper   *PaginationHelper
-	config             *config.Config
+	repos            *repository.Repositories
+	spotifyServices  *spotify.Services
+	subscriptionMgr  *SubscriptionManager
+	paginationHelper *PaginationHelper
+	config           *config.Config
 }
 
 // NewResolver creates a new GraphQL resolver with all required dependencies
@@ -49,7 +49,7 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 		Track:      postgres.NewTrackRepository(postgresDB),
 		Review:     postgres.NewReviewRepository(postgresDB),
 		Playlist:   postgres.NewPlaylistRepository(postgresDB),
-		Session:    redisrepo.NewSessionRepository(redisClient),   // Using Redis for sessions
+		Session:    redisrepo.NewSessionRepository(redisClient),    // Using Redis for sessions
 		MusicCache: redisrepo.NewMusicCacheRepository(redisClient), // Using Redis for music caching
 	}
 
@@ -61,9 +61,9 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 			ClientID:     cfg.SpotifyClientID,
 			ClientSecret: cfg.SpotifyClientSecret,
 			RedirectURL:  "http://localhost:8080/callback", // Default redirect for client credentials
-			Scopes:       []string{}, // No scopes needed for client credentials flow
+			Scopes:       []string{},                       // No scopes needed for client credentials flow
 		})
-		
+
 		// Get client credentials client for public API access
 		ctx := context.Background()
 		client, err := spotifyClient.GetClientCredentialsClient(ctx)
@@ -82,11 +82,11 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 	paginationHelper := NewPaginationHelper(repos)
 
 	return &Resolver{
-		repos:              repos,
-		spotifyServices:    spotifyServices,
-		subscriptionMgr:    subscriptionMgr,
-		paginationHelper:   paginationHelper,
-		config:             cfg,
+		repos:            repos,
+		spotifyServices:  spotifyServices,
+		subscriptionMgr:  subscriptionMgr,
+		paginationHelper: paginationHelper,
+		config:           cfg,
 	}, nil
 }
 

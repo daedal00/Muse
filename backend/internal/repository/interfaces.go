@@ -65,7 +65,7 @@ type PlaylistRepository interface {
 	Update(ctx context.Context, playlist *models.Playlist) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*models.Playlist, error)
-	
+
 	// Playlist track operations
 	AddTrack(ctx context.Context, playlistID, trackID uuid.UUID, position int) error
 	RemoveTrack(ctx context.Context, playlistID, trackID uuid.UUID) error
@@ -88,21 +88,21 @@ type MusicCacheRepository interface {
 	SetUserMusicData(ctx context.Context, userID uuid.UUID, data interface{}) error
 	GetUserMusicData(ctx context.Context, userID uuid.UUID) (interface{}, error)
 	AddToRecentlyPlayed(ctx context.Context, userID uuid.UUID, track *models.Track) error
-	
+
 	// Search results caching
 	SetSearchResults(ctx context.Context, query string, resultType string, results interface{}) error
 	GetSearchResults(ctx context.Context, query string, resultType string) (interface{}, error)
-	
+
 	// Listening history
 	SetListeningHistory(ctx context.Context, userID uuid.UUID, history interface{}) error
 	GetListeningHistory(ctx context.Context, userID uuid.UUID) (interface{}, error)
-	
+
 	// Popular content caching
 	SetPopularAlbums(ctx context.Context, albums []*models.Album) error
 	GetPopularAlbums(ctx context.Context) ([]*models.Album, error)
 	SetPopularTracks(ctx context.Context, tracks []*models.Track) error
 	GetPopularTracks(ctx context.Context) ([]*models.Track, error)
-	
+
 	// Cache management
 	InvalidateUserCache(ctx context.Context, userID uuid.UUID) error
 	InvalidateSearchCache(ctx context.Context, query string) error
@@ -111,12 +111,12 @@ type MusicCacheRepository interface {
 
 // Repository container
 type Repositories struct {
-	User      UserRepository
-	Artist    ArtistRepository
-	Album     AlbumRepository
-	Track     TrackRepository
-	Review    ReviewRepository
-	Playlist  PlaylistRepository
-	Session   SessionRepository
+	User       UserRepository
+	Artist     ArtistRepository
+	Album      AlbumRepository
+	Track      TrackRepository
+	Review     ReviewRepository
+	Playlist   PlaylistRepository
+	Session    SessionRepository
 	MusicCache MusicCacheRepository // New: Redis music cache
-} 
+}

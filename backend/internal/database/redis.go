@@ -70,4 +70,4 @@ func (r *RedisClient) GetSession(ctx context.Context, sessionID string) (string,
 
 func (r *RedisClient) DeleteSession(ctx context.Context, sessionID string) error {
 	return r.Delete(ctx, fmt.Sprintf("session:%s", sessionID))
-} 
+}
