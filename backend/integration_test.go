@@ -36,7 +36,7 @@ type GraphQLRequest struct {
 type GraphQLResponse struct {
 	Data   interface{} `json:"data,omitempty"`
 	Errors []struct {
-		Message string `json:"message"`
+		Message string        `json:"message"`
 		Path    []interface{} `json:"path,omitempty"`
 	} `json:"errors,omitempty"`
 }
@@ -184,9 +184,9 @@ func TestGraphQLIntrospection(t *testing.T) {
 		if isCI() {
 			// In CI environments, provide more detailed error information
 			t.Logf("CI Environment detected. Database connection failed: %v", err)
-			t.Logf("Config: Host=%s, Port=%d, User=%s, Database=%s", 
+			t.Logf("Config: Host=%s, Port=%d, User=%s, Database=%s",
 				cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBName)
-			
+
 			// Check if it's a connection issue vs configuration issue
 			if cfg.DatabaseURL != "" {
 				t.Logf("Using DATABASE_URL: %s", maskSensitiveInfo(cfg.DatabaseURL))
@@ -310,12 +310,12 @@ func maskSensitiveInfo(connectionString string) string {
 	if len(connectionString) == 0 {
 		return connectionString
 	}
-	
+
 	// For URL format: postgres://user:password@host:port/db
 	if len(connectionString) > 20 {
 		return connectionString[:10] + "***MASKED***" + connectionString[len(connectionString)-10:]
 	}
-	
+
 	// For key=value format, just show length
 	return fmt.Sprintf("***MASKED_CONNECTION_STRING_LENGTH_%d***", len(connectionString))
 }

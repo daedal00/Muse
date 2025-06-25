@@ -49,7 +49,7 @@ func TestConfigLoad(t *testing.T) {
 	// Test that DSN is generated correctly
 	dsn := cfg.GetDatabaseDSN()
 	assert.NotEmpty(t, dsn)
-	
+
 	// More flexible DSN assertions that work in CI environments
 	// Check that DSN contains expected format components
 	if !strings.Contains(dsn, "://") {
@@ -58,7 +58,7 @@ func TestConfigLoad(t *testing.T) {
 		assert.Contains(t, dsn, "user=", "DSN should contain user parameter")
 		assert.Contains(t, dsn, "dbname=", "DSN should contain dbname parameter")
 		assert.Contains(t, dsn, "sslmode=", "DSN should contain sslmode parameter")
-		
+
 		// Only check specific values if not in CI environment (where they might be masked)
 		if !isCI() {
 			assert.Contains(t, dsn, "host=localhost")
@@ -68,7 +68,7 @@ func TestConfigLoad(t *testing.T) {
 		}
 	} else {
 		// URL format connection string
-		assert.True(t, strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://"), 
+		assert.True(t, strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://"),
 			"DSN should be a valid PostgreSQL URL")
 	}
 }
@@ -101,7 +101,7 @@ func TestConfigLoad_DefaultValues(t *testing.T) {
 
 	dsn := cfg.GetDatabaseDSN()
 	assert.NotEmpty(t, dsn)
-	
+
 	// More flexible assertions for default values
 	if !isCI() {
 		assert.Contains(t, dsn, "host=localhost")
@@ -251,14 +251,14 @@ func TestEnvironmentVariableHandling(t *testing.T) {
 			require.NoError(t, err)
 
 			dsn := cfg.GetDatabaseDSN()
-			
+
 			// More flexible assertion that works in CI environments
 			if !isCI() {
 				assert.Contains(t, dsn, tt.expected)
 			} else {
 				// In CI, just verify the DSN is not empty and contains basic structure
 				assert.NotEmpty(t, dsn)
-				assert.True(t, strings.Contains(dsn, "=") || strings.Contains(dsn, "://"), 
+				assert.True(t, strings.Contains(dsn, "=") || strings.Contains(dsn, "://"),
 					"DSN should be a valid connection string")
 			}
 		})
@@ -325,7 +325,7 @@ func TestConfigIntegration(t *testing.T) {
 
 			dsn := cfg.GetDatabaseDSN()
 			assert.NotEmpty(t, dsn)
-			
+
 			// More flexible assertions for CI environments
 			if !isCI() {
 				// In local environments, check exact values
@@ -337,7 +337,7 @@ func TestConfigIntegration(t *testing.T) {
 				assert.Contains(t, dsn, tc.sslmode)
 			} else {
 				// In CI environments, just check structure and that config was loaded
-				assert.True(t, strings.Contains(dsn, "=") || strings.Contains(dsn, "://"), 
+				assert.True(t, strings.Contains(dsn, "=") || strings.Contains(dsn, "://"),
 					"DSN should be a valid connection string format")
 				assert.Equal(t, tc.host, cfg.DBHost, "Config should have correct host")
 				assert.Equal(t, tc.user, cfg.DBUser, "Config should have correct user")
