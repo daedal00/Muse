@@ -6,10 +6,15 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      - SPOTIFY_REDIRECT_URL=${SPOTIFY_REDIRECT_URL:-http://localhost:8080/callback}
+    env_file:
+      - .env
     develop:
       watch:
         - action: rebuild
           path: ./backend
           ignore:
             - ./backend/main
-            - ./backend/.git 
+            - ./backend/.git
