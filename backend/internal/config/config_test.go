@@ -13,7 +13,7 @@ func TestLoadConfig(t *testing.T) {
 	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
-	
+
 	defer func() {
 		os.Unsetenv("PORT")
 		os.Unsetenv("ENVIRONMENT")
@@ -46,7 +46,7 @@ func TestConfigDefaults(t *testing.T) {
 	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
-	
+
 	defer func() {
 		os.Unsetenv("SPOTIFY_CLIENT_ID")
 		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
@@ -71,7 +71,7 @@ func TestConfigDefaults(t *testing.T) {
 func TestConfigValidation(t *testing.T) {
 	// Test missing required fields
 	os.Clearenv()
-	
+
 	_, err := Load()
 	if err == nil {
 		t.Error("Expected validation error for missing required fields")
@@ -86,7 +86,7 @@ func BenchmarkLoadConfig(b *testing.B) {
 	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
-	
+
 	defer func() {
 		os.Unsetenv("PORT")
 		os.Unsetenv("ENVIRONMENT")
@@ -103,4 +103,4 @@ func BenchmarkLoadConfig(b *testing.B) {
 			b.Fatalf("Failed to load config: %v", err)
 		}
 	}
-} 
+}

@@ -156,7 +156,7 @@ func TestSessionRepository_GetByUserID(t *testing.T) {
 	testRedis.Client.FlushDB(ctx)
 
 	userID := uuid.New()
-	
+
 	// Create multiple sessions for the same user
 	sessions := []*models.Session{
 		{
@@ -253,7 +253,7 @@ func TestSessionRepository_DeleteByUserID(t *testing.T) {
 	testRedis.Client.FlushDB(ctx)
 
 	userID := uuid.New()
-	
+
 	// Create multiple sessions for the user
 	sessions := []*models.Session{
 		{
@@ -303,7 +303,7 @@ func TestSessionRepository_DeleteExpired(t *testing.T) {
 	testRedis.Client.FlushDB(ctx)
 
 	userID := uuid.New()
-	
+
 	// Create a session that will expire quickly
 	shortSession := &models.Session{
 		ID:        "short-lived-session",
@@ -354,7 +354,7 @@ func TestSessionRepository_ConcurrentOperations(t *testing.T) {
 	testRedis.Client.FlushDB(ctx)
 
 	userID := uuid.New()
-	
+
 	// Test concurrent session creation
 	numGoroutines := 10
 	done := make(chan bool, numGoroutines)
@@ -460,7 +460,7 @@ func BenchmarkSessionRepository_GetByUserID(b *testing.B) {
 	testRedis.Client.FlushDB(ctx)
 
 	userID := uuid.New()
-	
+
 	// Create multiple sessions for benchmarking
 	for i := 0; i < 10; i++ {
 		session := &models.Session{
@@ -554,4 +554,4 @@ func BenchmarkSessionRepository_DeleteByUserID(b *testing.B) {
 			b.Fatalf("Failed to delete user sessions: %v", err)
 		}
 	}
-} 
+}

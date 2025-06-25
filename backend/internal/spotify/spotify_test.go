@@ -91,7 +91,7 @@ func TestClient_GetClientCredentialsClient(t *testing.T) {
 	// Skip this test if we don't have real credentials
 	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
 	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
-	
+
 	if clientID == "" || clientSecret == "" {
 		t.Skip("Skipping integration test: SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET not set")
 	}
@@ -266,4 +266,4 @@ func BenchmarkClient_GetAuthorizedClient(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = client.GetAuthorizedClient(ctx, token)
 	}
-} 
+}

@@ -6,10 +6,10 @@ import (
 
 func TestUser_Fields(t *testing.T) {
 	user := User{
-		ID:    "user-123",
-		Name:  "John Doe",
-		Email: "john@example.com",
-		Bio:   stringPtr("A music lover"),
+		ID:     "user-123",
+		Name:   "John Doe",
+		Email:  "john@example.com",
+		Bio:    stringPtr("A music lover"),
 		Avatar: stringPtr("https://example.com/avatar.jpg"),
 	}
 
@@ -161,4 +161,4 @@ func stringPtr(s string) *string {
 
 func int32Ptr(i int32) *int32 {
 	return &i
-} 
+}

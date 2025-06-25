@@ -19,7 +19,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("DB_PASSWORD", "test")
 	os.Setenv("DB_NAME", "test_db")
 	os.Setenv("DB_SSLMODE", "disable")
-	
+
 	// Add required Spotify credentials for config validation
 	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
@@ -45,7 +45,7 @@ func TestConfigLoad(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
-	
+
 	// Test that DSN is generated correctly
 	dsn := cfg.GetDatabaseDSN()
 	assert.NotEmpty(t, dsn)
@@ -60,15 +60,15 @@ func TestConfigLoad_DefaultValues(t *testing.T) {
 	// Clear all DB env vars to test defaults
 	envVars := []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SSLMODE"}
 	originalValues := make(map[string]string)
-	
+
 	for _, envVar := range envVars {
 		originalValues[envVar] = os.Getenv(envVar)
 		os.Unsetenv(envVar)
 	}
-	
+
 	// Set a default password since validation requires it
 	os.Setenv("DB_PASSWORD", "default_password")
-	
+
 	defer func() {
 		for _, envVar := range envVars {
 			if originalValues[envVar] != "" {
@@ -77,11 +77,11 @@ func TestConfigLoad_DefaultValues(t *testing.T) {
 		}
 		os.Unsetenv("DB_PASSWORD")
 	}()
-	
+
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
-	
+
 	dsn := cfg.GetDatabaseDSN()
 	assert.NotEmpty(t, dsn)
 	assert.Contains(t, dsn, "host=localhost")
@@ -104,22 +104,22 @@ func TestCommandLineArguments(t *testing.T) {
 		{"force command without version", []string{"migrate", "force"}, true},
 		{"invalid command", []string{"migrate", "invalid"}, true},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mock os.Args
 			originalArgs := os.Args
 			os.Args = tt.args
 			defer func() { os.Args = originalArgs }()
-			
+
 			// Test argument length validation
 			if len(os.Args) < 2 {
 				assert.True(t, tt.shouldError, "Expected error for insufficient arguments")
 				return
 			}
-			
+
 			command := os.Args[1]
-			
+
 			// Test command validation
 			validCommands := []string{"up", "down", "drop", "version", "force"}
 			isValid := false
@@ -129,7 +129,7 @@ func TestCommandLineArguments(t *testing.T) {
 					break
 				}
 			}
-			
+
 			if tt.shouldError {
 				if command == "force" && len(os.Args) < 3 {
 					assert.True(t, true, "Force command requires version argument")
@@ -160,12 +160,12 @@ func TestForceVersionParsing(t *testing.T) {
 		{"empty string", "", true, 0},
 		{"float number", "12.34", false, 12},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var v int
 			_, err := fmt.Sscanf(tt.version, "%d", &v)
-			
+
 			if tt.shouldError {
 				assert.Error(t, err)
 			} else {
@@ -179,7 +179,7 @@ func TestForceVersionParsing(t *testing.T) {
 func TestMigrationFileSource(t *testing.T) {
 	// Test that the migration file source path is correct
 	migrationSource := "file://migrations"
-	
+
 	assert.True(t, strings.HasPrefix(migrationSource, "file://"))
 	assert.True(t, strings.HasSuffix(migrationSource, "migrations"))
 }
@@ -198,7 +198,7 @@ func TestEnvironmentVariableHandling(t *testing.T) {
 		{"DB_NAME", "DB_NAME", "testdb", "testdb"},
 		{"DB_SSL_MODE", "DB_SSL_MODE", "require", "require"},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set environment variable
@@ -210,7 +210,7 @@ func TestEnvironmentVariableHandling(t *testing.T) {
 			if tt.envVar != "DB_PASSWORD" {
 				os.Setenv("DB_PASSWORD", "test-password")
 			}
-			
+
 			defer func() {
 				os.Unsetenv(tt.envVar)
 				os.Unsetenv("SPOTIFY_CLIENT_ID")
@@ -219,11 +219,11 @@ func TestEnvironmentVariableHandling(t *testing.T) {
 					os.Unsetenv("DB_PASSWORD")
 				}
 			}()
-			
+
 			// Load config and get DSN
 			cfg, err := config.Load()
 			require.NoError(t, err)
-			
+
 			dsn := cfg.GetDatabaseDSN()
 			assert.Contains(t, dsn, tt.expected)
 		})
@@ -260,7 +260,7 @@ func TestConfigIntegration(t *testing.T) {
 			sslmode:  "require",
 		},
 	}
-	
+
 	for _, tc := range testConfigs {
 		t.Run(tc.name, func(t *testing.T) {
 			// Set environment variables
@@ -273,7 +273,7 @@ func TestConfigIntegration(t *testing.T) {
 			// Add required Spotify credentials
 			os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 			os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
-			
+
 			defer func() {
 				os.Unsetenv("DB_HOST")
 				os.Unsetenv("DB_PORT")
@@ -284,10 +284,10 @@ func TestConfigIntegration(t *testing.T) {
 				os.Unsetenv("SPOTIFY_CLIENT_ID")
 				os.Unsetenv("SPOTIFY_CLIENT_SECRET")
 			}()
-			
+
 			cfg, err := config.Load()
 			require.NoError(t, err)
-			
+
 			dsn := cfg.GetDatabaseDSN()
 			assert.Contains(t, dsn, tc.host)
 			assert.Contains(t, dsn, tc.port)
@@ -305,13 +305,13 @@ func BenchmarkConfigLoad(b *testing.B) {
 	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DB_PASSWORD", "test-password")
-	
+
 	defer func() {
 		os.Unsetenv("SPOTIFY_CLIENT_ID")
 		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
 		os.Unsetenv("DB_PASSWORD")
 	}()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cfg, err := config.Load()
@@ -327,18 +327,18 @@ func BenchmarkGetDatabaseDSN(b *testing.B) {
 	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DB_PASSWORD", "test-password")
-	
+
 	defer func() {
 		os.Unsetenv("SPOTIFY_CLIENT_ID")
 		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
 		os.Unsetenv("DB_PASSWORD")
 	}()
-	
+
 	cfg, err := config.Load()
 	if err != nil {
 		b.Fatalf("Failed to load config: %v", err)
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = cfg.GetDatabaseDSN()
@@ -349,27 +349,31 @@ func BenchmarkArgumentParsing(b *testing.B) {
 	// Mock os.Args for benchmarking
 	originalArgs := os.Args
 	defer func() { os.Args = originalArgs }()
-	
+
 	testArgs := [][]string{
 		{"migrate", "up"},
 		{"migrate", "down"},
 		{"migrate", "version"},
 		{"migrate", "force", "123"},
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		args := testArgs[i%len(testArgs)]
 		os.Args = args
-		
+
 		// Simulate argument parsing
 		if len(os.Args) >= 2 {
 			command := os.Args[1]
 			if command == "force" && len(os.Args) >= 3 {
 				version := os.Args[2]
 				var v int
-				fmt.Sscanf(version, "%d", &v)
+				_, err := fmt.Sscanf(version, "%d", &v)
+				if err != nil {
+					// In a benchmark, we don't want to fail, just continue
+					continue
+				}
 			}
 		}
 	}
-} 
+}
