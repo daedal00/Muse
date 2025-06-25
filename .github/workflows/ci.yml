@@ -113,12 +113,24 @@ jobs:
         working-directory: ./backend
         run: go test -short -race -coverprofile=coverage.out -covermode=atomic ./...
 
-      - name: Upload coverage to Codecov
+      - name: Display test coverage summary
+        working-directory: ./backend
+        run: |
+          echo "=== TEST COVERAGE SUMMARY ==="
+          go tool cover -func=coverage.out | tail -1
+          echo ""
+          echo "=== DETAILED COVERAGE BY PACKAGE ==="
+          go tool cover -func=coverage.out | grep -v "total:"
+
+      - name: Upload coverage to Codecov (optional)
         uses: codecov/codecov-action@v4
+        if: env.CODECOV_TOKEN != ''
         with:
           file: ./backend/coverage.out
           flags: unittests
           name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
   # Job 4: Integration tests with database
   integration-tests:
@@ -195,12 +207,24 @@ jobs:
           REDIS_PASSWORD: ""
         run: go test -v -race -coverprofile=integration-coverage.out ./...
 
-      - name: Upload integration test coverage
+      - name: Display integration test coverage summary
+        working-directory: ./backend
+        run: |
+          echo "=== INTEGRATION TEST COVERAGE SUMMARY ==="
+          go tool cover -func=integration-coverage.out | tail -1
+          echo ""
+          echo "=== PACKAGES WITH ACTUAL TESTS ==="
+          go tool cover -func=integration-coverage.out | grep -v ":0.0%" || echo "No packages with > 0% coverage found"
+
+      - name: Upload integration test coverage (optional)
         uses: codecov/codecov-action@v4
+        if: env.CODECOV_TOKEN != ''
         with:
           file: ./backend/integration-coverage.out
           flags: integrationtests
           name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
   # Job 5: Security scanning
   security:
@@ -297,7 +321,7 @@ jobs:
           # Add smoke tests here
           # For example, check if the health endpoint returns 200
 
-  # Job 8: Performance tests (optional)
+  # Job 8: Performance tests (optional, only if benchmarks exist)
   performance:
     name: Performance Tests
     runs-on: ubuntu-latest
@@ -346,7 +370,20 @@ jobs:
         run: |
           migrate -path migrations -database "$DATABASE_URL" up
 
+      - name: Check for benchmark tests
+        id: check-benchmarks
+        working-directory: ./backend
+        run: |
+          if grep -r "func Benchmark" . --include="*_test.go" > /dev/null 2>&1; then
+            echo "benchmarks_exist=true" >> $GITHUB_OUTPUT
+            echo "Found benchmark functions"
+          else
+            echo "benchmarks_exist=false" >> $GITHUB_OUTPUT
+            echo "No benchmark functions found - skipping performance tests"
+          fi
+
       - name: Run performance benchmarks
+        if: steps.check-benchmarks.outputs.benchmarks_exist == 'true'
         working-directory: ./backend
         env:
           ENVIRONMENT: test
@@ -361,11 +398,20 @@ jobs:
           REDIS_ADDR: localhost:6379
           REDIS_PASSWORD: ""
         run: |
+          echo "=== RUNNING PERFORMANCE BENCHMARKS ==="
           go test -bench=. -benchmem -run=^$ ./... | tee benchmark-results.txt
 
       - name: Upload benchmark results
+        if: steps.check-benchmarks.outputs.benchmarks_exist == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-${{ github.sha }}
           path: backend/benchmark-results.txt
           retention-days: 30
+
+      - name: Skip benchmarks message
+        if: steps.check-benchmarks.outputs.benchmarks_exist == 'false'
+        run: |
+          echo "⚠️  No benchmark functions found. To add performance tests:"
+          echo "   1. Create functions starting with 'func Benchmark' in *_test.go files"
+          echo "   2. Example: func BenchmarkMyFunction(b *testing.B) { ... }"
