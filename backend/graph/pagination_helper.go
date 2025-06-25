@@ -284,8 +284,14 @@ func (p *PaginationHelper) GetReviewsWithCursor(ctx context.Context, first int, 
 		
 		if !cursor.CreatedAt.IsZero() {
 			reviews, err = p.getReviewsAfterCursor(ctx, cursor, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		} else {
 			reviews, err = p.getReviewsAfterPosition(ctx, cursor.ID, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		}
 	} else {
 		reviews, err = p.repos.Review.List(ctx, first+1, 0)
@@ -375,8 +381,14 @@ func (p *PaginationHelper) GetPlaylistsWithCursor(ctx context.Context, first int
 		
 		if !cursor.CreatedAt.IsZero() {
 			playlists, err = p.getPlaylistsAfterCursor(ctx, cursor, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		} else {
 			playlists, err = p.getPlaylistsAfterPosition(ctx, cursor.ID, first+1)
+			if err != nil {
+				return nil, false, err
+			}
 		}
 	} else {
 		playlists, err = p.repos.Playlist.List(ctx, first+1, 0)
