@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -169,14 +170,46 @@ func TestGraphQLIntrospection(t *testing.T) {
 		DBPassword:  getEnvOrDefault("DB_PASSWORD", "password"),
 		DBSSLMode:   "disable",
 
-		RedisURL:      getEnvOrDefault("REDIS_URL", "redis://localhost:6379"),
-		RedisHost:     getEnvOrDefault("REDIS_HOST", "localhost"),
-		RedisPort:     6379,
-		RedisPassword: getEnvOrDefault("REDIS_PASSWORD", ""),
-		RedisDB:       0,
-
 		JWTSecret: "test-secret-key-for-integration-tests",
 	}
+
+	// Handle Redis configuration similar to config.Load()
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		// Check for REDIS_ADDR as alternative (used in CI environments)
+		if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
+			redisDB := 0
+			if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
+				if db, err := strconv.Atoi(dbStr); err == nil {
+					redisDB = db
+				}
+			}
+			redisPassword := os.Getenv("REDIS_PASSWORD")
+
+			// Construct Redis URL with optional password and database
+			if redisPassword != "" {
+				if redisDB != 0 {
+					redisURL = fmt.Sprintf("redis://:%s@%s/%d", redisPassword, redisAddr, redisDB)
+				} else {
+					redisURL = fmt.Sprintf("redis://:%s@%s", redisPassword, redisAddr)
+				}
+			} else {
+				if redisDB != 0 {
+					redisURL = fmt.Sprintf("redis://%s/%d", redisAddr, redisDB)
+				} else {
+					redisURL = "redis://" + redisAddr
+				}
+			}
+		} else {
+			redisURL = "redis://localhost:6379"
+		}
+	}
+
+	cfg.RedisURL = redisURL
+	cfg.RedisHost = getEnvOrDefault("REDIS_HOST", "localhost")
+	cfg.RedisPort = 6379
+	cfg.RedisPassword = getEnvOrDefault("REDIS_PASSWORD", "")
+	cfg.RedisDB = 0
 
 	// Create resolver with better error handling
 	resolver, err := graph.NewResolver(cfg)
@@ -273,20 +306,53 @@ func TestHealthCheck(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Load minimal config for health check
+	// Load minimal config for health check - use same Redis logic as main config
 	cfg := &config.Config{
 		Port:                "8080",
 		Environment:         "test",
 		SpotifyClientID:     "test-client-id",
 		SpotifyClientSecret: "test-secret",
 		DatabaseURL:         getEnvOrDefault("DATABASE_URL", "postgres://test:test@localhost/test"),
-		RedisURL:            getEnvOrDefault("REDIS_URL", "redis://localhost:6379"),
-		RedisHost:           getEnvOrDefault("REDIS_HOST", "localhost"),
-		RedisPort:           6379,
-		RedisPassword:       getEnvOrDefault("REDIS_PASSWORD", ""),
-		RedisDB:             0,
 		JWTSecret:           "test-secret-key",
 	}
+
+	// Handle Redis configuration similar to config.Load()
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		// Check for REDIS_ADDR as alternative (used in CI environments)
+		if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
+			redisDB := 0
+			if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
+				if db, err := strconv.Atoi(dbStr); err == nil {
+					redisDB = db
+				}
+			}
+			redisPassword := os.Getenv("REDIS_PASSWORD")
+
+			// Construct Redis URL with optional password and database
+			if redisPassword != "" {
+				if redisDB != 0 {
+					redisURL = fmt.Sprintf("redis://:%s@%s/%d", redisPassword, redisAddr, redisDB)
+				} else {
+					redisURL = fmt.Sprintf("redis://:%s@%s", redisPassword, redisAddr)
+				}
+			} else {
+				if redisDB != 0 {
+					redisURL = fmt.Sprintf("redis://%s/%d", redisAddr, redisDB)
+				} else {
+					redisURL = "redis://" + redisAddr
+				}
+			}
+		} else {
+			redisURL = "redis://localhost:6379"
+		}
+	}
+
+	cfg.RedisURL = redisURL
+	cfg.RedisHost = getEnvOrDefault("REDIS_HOST", "localhost")
+	cfg.RedisPort = 6379
+	cfg.RedisPassword = getEnvOrDefault("REDIS_PASSWORD", "")
+	cfg.RedisDB = 0
 
 	// Create resolver - if it fails, skip the test
 	resolver, err := graph.NewResolver(cfg)
