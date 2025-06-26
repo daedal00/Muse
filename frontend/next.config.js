@@ -7,7 +7,7 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_GRAPHQL_URL:
-      process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:8080/query",
+      process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://127.0.0.1:8080/query",
   },
 };
 

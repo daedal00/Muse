@@ -46,3 +46,7 @@ temp/
 # Coverage reports
 coverage.txt
 coverage.html
+
+# SSL certificates
+cert.pem
+key.pem

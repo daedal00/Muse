@@ -157,3 +157,8 @@ tramp
 # Application specific
 muse
 /muse 
+# Local HTTPS certificates
+backend/cert.pem
+backend/key.pem
+frontend/cert.pem
+frontend/key.pem

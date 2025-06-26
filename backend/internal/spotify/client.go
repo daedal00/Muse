@@ -28,46 +28,61 @@ type Config struct {
 }
 
 // NewClient creates a new Spotify client instance
+// If config values are empty, it will try to read from environment variables
 func NewClient(config Config) *Client {
-	auth := spotifyauth.New(
-		spotifyauth.WithRedirectURL(config.RedirectURL),
-		spotifyauth.WithScopes(config.Scopes...),
-	)
-
-	return &Client{
-		auth:         auth,
-		clientID:     config.ClientID,
-		clientSecret: config.ClientSecret,
-	}
-}
-
-// NewClientFromEnv creates a new Spotify client from environment variables
-func NewClientFromEnv() *Client {
-	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
-	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
-	redirectURL := os.Getenv("SPOTIFY_REDIRECT_URL")
-
-	if clientID == "" || clientSecret == "" {
-		log.Fatal("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
+	// Use environment variables as fallbacks if config values are empty
+	clientID := config.ClientID
+	if clientID == "" {
+		clientID = os.Getenv("SPOTIFY_CLIENT_ID")
 	}
 
+	clientSecret := config.ClientSecret
+	if clientSecret == "" {
+		clientSecret = os.Getenv("SPOTIFY_CLIENT_SECRET")
+	}
+
+	redirectURL := config.RedirectURL
 	if redirectURL == "" {
-		redirectURL = "http://localhost:8080/callback"
+		redirectURL = os.Getenv("SPOTIFY_REDIRECT_URL")
+		if redirectURL == "" {
+			redirectURL = "https://127.0.0.1:8080/auth/spotify/callback"
+		}
 	}
 
-	return NewClient(Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURL:  redirectURL,
-		Scopes: []string{
+	scopes := config.Scopes
+	if len(scopes) == 0 {
+		scopes = []string{
 			spotifyauth.ScopeUserReadPrivate,
 			spotifyauth.ScopeUserReadEmail,
 			spotifyauth.ScopePlaylistReadPrivate,
 			spotifyauth.ScopePlaylistReadCollaborative,
 			spotifyauth.ScopeUserLibraryRead,
 			spotifyauth.ScopeUserTopRead,
-		},
-	})
+		}
+	}
+
+	if clientID == "" || clientSecret == "" {
+		log.Fatal("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
+	}
+
+	auth := spotifyauth.New(
+		spotifyauth.WithRedirectURL(redirectURL),
+		spotifyauth.WithScopes(scopes...),
+		spotifyauth.WithClientID(clientID),
+		spotifyauth.WithClientSecret(clientSecret),
+	)
+
+	return &Client{
+		auth:         auth,
+		clientID:     clientID,
+		clientSecret: clientSecret,
+	}
+}
+
+// NewClientFromEnv creates a new Spotify client from environment variables
+// Deprecated: Use NewClient(Config{}) instead, which now reads from env vars by default
+func NewClientFromEnv() *Client {
+	return NewClient(Config{})
 }
 
 // GetClientCredentialsClient returns a client using client credentials flow (for public data)

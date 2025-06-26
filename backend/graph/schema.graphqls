@@ -148,6 +148,73 @@ type TrackSearchResult {
 }
 
 # ---------------------------------------
+# Spotify Integration Types
+# ---------------------------------------
+
+type SpotifyPlaylist {
+  id: String!
+  name: String!
+  description: String
+  image: String
+  trackCount: Int!
+  isPublic: Boolean!
+}
+
+type SpotifyPlaylistConnection {
+  playlists: [SpotifyPlaylist!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+}
+
+type SpotifyAuthURL {
+  url: String!
+  state: String!
+}
+
+# ---------------------------------------
+# Enhanced Album Details
+# ---------------------------------------
+
+type AlbumDetails {
+  id: ID!
+  spotifyID: String
+  title: String!
+  artist: Artist!
+  releaseDate: DateTime
+  coverImage: String
+  tracks: [TrackDetails!]!
+  averageRating: Float
+  totalReviews: Int!
+  reviews(first: Int, after: String): ReviewConnection!
+}
+
+type TrackDetails {
+  id: ID!
+  spotifyID: String
+  title: String!
+  duration: Int # Duration in seconds
+  trackNumber: Int
+  featuredArtists: [Artist!]!
+  averageRating: Float
+  totalReviews: Int!
+}
+
+# ---------------------------------------
+# Enhanced Artist Details
+# ---------------------------------------
+
+type ArtistDetails {
+  id: ID!
+  spotifyID: String
+  name: String!
+  albums: [Album!]!
+  topTracks: [Track!]!
+  image: String
+  followers: Int
+  genres: [String!]!
+}
+
+# ---------------------------------------
 # Inputs for Search Queries
 # ---------------------------------------
 
@@ -165,6 +232,18 @@ input ArtistSearchInput {
   source: ExternalSource = SPOTIFY
 }
 
+input TrackSearchInput {
+  query: String!
+  limit: Int
+  offset: Int
+  source: ExternalSource = SPOTIFY
+}
+
+input SpotifyPlaylistsInput {
+  limit: Int = 20
+  offset: Int = 0
+}
+
 # ---------------------------------------
 # Query Type – Core and External Searches
 # ---------------------------------------
@@ -175,7 +254,10 @@ type Query {
 
   albums(first: Int, after: String): AlbumConnection!
   album(id: ID!): Album
-
+  albumDetails(id: ID!): AlbumDetails # Enhanced album view with tracks and ratings
+  # Artist queries
+  artist(id: ID!): Artist
+  artistDetails(id: ID!): ArtistDetails # Enhanced artist view with albums and top tracks
   tracks(first: Int, after: String): TrackConnection!
   track(id: ID!): Track
 
@@ -190,6 +272,11 @@ type Query {
   # External Search Queries
   searchAlbums(input: AlbumSearchInput!): [AlbumSearchResult!]!
   searchArtists(input: ArtistSearchInput!): [ArtistSearchResult!]!
+  searchTracks(input: TrackSearchInput!): [TrackSearchResult!]!
+
+  # Spotify Integration Queries
+  spotifyPlaylists(input: SpotifyPlaylistsInput): SpotifyPlaylistConnection! # Get user's Spotify playlists with pagination
+  spotifyAuthURL: SpotifyAuthURL! # Get Spotify OAuth URL
 }
 
 # ---------------------------------------
@@ -197,7 +284,8 @@ type Query {
 # ---------------------------------------
 
 input CreateReviewInput {
-  albumId: ID!
+  albumId: ID
+  trackId: ID
   rating: Int!
   reviewText: String
 }
@@ -214,6 +302,9 @@ type Mutation {
   createReview(input: CreateReviewInput!): Review!
   createPlaylist(input: CreatePlaylistInput!): Playlist!
   addTrackToPlaylist(playlistId: ID!, trackId: ID!): Playlist!
+
+  # Spotify Integration Mutations
+  importSpotifyPlaylist(spotifyPlaylistId: String!): Playlist!
 }
 
 type Subscription {

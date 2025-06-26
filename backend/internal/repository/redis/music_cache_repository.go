@@ -19,9 +19,9 @@ type MusicCacheRepository struct {
 
 // MusicData represents cached music data for a user
 type MusicData struct {
-	RecentlyPlayed []*models.Track `json:"recently_played"`
-	FavoriteAlbums []*models.Album `json:"favorite_albums"`
-	LastUpdated    time.Time       `json:"last_updated"`
+	RecentlyPlayed []*models.SpotifyTrack `json:"recently_played"`
+	FavoriteAlbums []*models.SpotifyAlbum `json:"favorite_albums"`
+	LastUpdated    time.Time              `json:"last_updated"`
 }
 
 // SearchCacheData represents cached search results
@@ -34,11 +34,11 @@ type SearchCacheData struct {
 
 // ListeningHistory represents a user's listening activity
 type ListeningHistory struct {
-	UserID    uuid.UUID        `json:"user_id"`
-	Tracks    []*models.Track  `json:"tracks"`
-	Albums    []*models.Album  `json:"albums"`
-	Artists   []*models.Artist `json:"artists"`
-	Timestamp time.Time        `json:"timestamp"`
+	UserID    uuid.UUID               `json:"user_id"`
+	Tracks    []*models.SpotifyTrack  `json:"tracks"`
+	Albums    []*models.SpotifyAlbum  `json:"albums"`
+	Artists   []*models.SpotifyArtist `json:"artists"`
+	Timestamp time.Time               `json:"timestamp"`
 }
 
 // Cache durations
@@ -97,7 +97,7 @@ func (r *MusicCacheRepository) GetUserMusicData(ctx context.Context, userID uuid
 }
 
 // AddToRecentlyPlayed adds a track to user's recently played list
-func (r *MusicCacheRepository) AddToRecentlyPlayed(ctx context.Context, userID uuid.UUID, track *models.Track) error {
+func (r *MusicCacheRepository) AddToRecentlyPlayed(ctx context.Context, userID uuid.UUID, track *models.SpotifyTrack) error {
 	// Get existing data
 	data, err := r.GetUserMusicData(ctx, userID)
 	if err != nil {
@@ -107,8 +107,8 @@ func (r *MusicCacheRepository) AddToRecentlyPlayed(ctx context.Context, userID u
 	var musicData *MusicData
 	if data == nil {
 		musicData = &MusicData{
-			RecentlyPlayed: []*models.Track{},
-			FavoriteAlbums: []*models.Album{},
+			RecentlyPlayed: []*models.SpotifyTrack{},
+			FavoriteAlbums: []*models.SpotifyAlbum{},
 		}
 	} else {
 		// Cast the interface{} to *MusicData
@@ -120,7 +120,7 @@ func (r *MusicCacheRepository) AddToRecentlyPlayed(ctx context.Context, userID u
 	}
 
 	// Add track to beginning of recently played (most recent first)
-	musicData.RecentlyPlayed = append([]*models.Track{track}, musicData.RecentlyPlayed...)
+	musicData.RecentlyPlayed = append([]*models.SpotifyTrack{track}, musicData.RecentlyPlayed...)
 
 	// Keep only last 50 tracks
 	if len(musicData.RecentlyPlayed) > 50 {
@@ -216,7 +216,7 @@ func (r *MusicCacheRepository) GetListeningHistory(ctx context.Context, userID u
 // ============ Popular Content Caching ============
 
 // SetPopularAlbums caches popular albums for faster recommendations
-func (r *MusicCacheRepository) SetPopularAlbums(ctx context.Context, albums []*models.Album) error {
+func (r *MusicCacheRepository) SetPopularAlbums(ctx context.Context, albums []*models.SpotifyAlbum) error {
 	key := "popular:albums"
 
 	jsonData, err := json.Marshal(albums)
@@ -228,7 +228,7 @@ func (r *MusicCacheRepository) SetPopularAlbums(ctx context.Context, albums []*m
 }
 
 // GetPopularAlbums retrieves cached popular albums
-func (r *MusicCacheRepository) GetPopularAlbums(ctx context.Context) ([]*models.Album, error) {
+func (r *MusicCacheRepository) GetPopularAlbums(ctx context.Context) ([]*models.SpotifyAlbum, error) {
 	key := "popular:albums"
 
 	data, err := r.client.Client.Get(ctx, key).Result()
@@ -239,7 +239,7 @@ func (r *MusicCacheRepository) GetPopularAlbums(ctx context.Context) ([]*models.
 		return nil, fmt.Errorf("failed to get popular albums: %w", err)
 	}
 
-	var albums []*models.Album
+	var albums []*models.SpotifyAlbum
 	if err := json.Unmarshal([]byte(data), &albums); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal popular albums: %w", err)
 	}
@@ -248,7 +248,7 @@ func (r *MusicCacheRepository) GetPopularAlbums(ctx context.Context) ([]*models.
 }
 
 // SetPopularTracks caches popular tracks
-func (r *MusicCacheRepository) SetPopularTracks(ctx context.Context, tracks []*models.Track) error {
+func (r *MusicCacheRepository) SetPopularTracks(ctx context.Context, tracks []*models.SpotifyTrack) error {
 	key := "popular:tracks"
 
 	jsonData, err := json.Marshal(tracks)
@@ -260,7 +260,7 @@ func (r *MusicCacheRepository) SetPopularTracks(ctx context.Context, tracks []*m
 }
 
 // GetPopularTracks retrieves cached popular tracks
-func (r *MusicCacheRepository) GetPopularTracks(ctx context.Context) ([]*models.Track, error) {
+func (r *MusicCacheRepository) GetPopularTracks(ctx context.Context) ([]*models.SpotifyTrack, error) {
 	key := "popular:tracks"
 
 	data, err := r.client.Client.Get(ctx, key).Result()
@@ -271,7 +271,7 @@ func (r *MusicCacheRepository) GetPopularTracks(ctx context.Context) ([]*models.
 		return nil, fmt.Errorf("failed to get popular tracks: %w", err)
 	}
 
-	var tracks []*models.Track
+	var tracks []*models.SpotifyTrack
 	if err := json.Unmarshal([]byte(data), &tracks); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal popular tracks: %w", err)
 	}

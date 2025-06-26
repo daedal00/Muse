@@ -40,6 +40,12 @@ const Header: React.FC = () => {
             >
               Playlists
             </Link>
+            <Link
+              href="/spotify-playlists"
+              className="text-gray-700 hover:text-blue-600"
+            >
+              Spotify
+            </Link>
           </nav>
 
           <div className="flex items-center space-x-4">
