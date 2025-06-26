@@ -27,25 +27,25 @@ import (
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// Log incoming request
-		log.Printf("[REQUEST] %s %s from %s - User-Agent: %s", 
+		log.Printf("[REQUEST] %s %s from %s - User-Agent: %s",
 			r.Method, r.URL.Path, r.RemoteAddr, r.UserAgent())
-		
+
 		// Check for GraphQL query in body for POST requests
 		if r.Method == "POST" && strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 			log.Printf("[GRAPHQL] Processing GraphQL request")
 		}
-		
+
 		// Create a response writer wrapper to capture status code
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		
+
 		// Call next handler
 		next.ServeHTTP(wrapped, r)
-		
+
 		// Log response
 		duration := time.Since(start)
-		log.Printf("[RESPONSE] %s %s - Status: %d - Duration: %v", 
+		log.Printf("[RESPONSE] %s %s - Status: %d - Duration: %v",
 			r.Method, r.URL.Path, wrapped.statusCode, duration)
 	})
 }
@@ -66,7 +66,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		log.Printf("[CORS] Request from origin: %s", origin)
-		
+
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -87,7 +87,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 func main() {
 	log.Println("🚀 Starting Muse Backend Server...")
-	
+
 	// Load configuration
 	log.Println("[CONFIG] Loading configuration...")
 	cfg, err := config.Load()
@@ -136,7 +136,7 @@ func main() {
 		authHeader := r.Header.Get("Authorization")
 		baseCtx := r.Context()
 		newCtx := baseCtx
-		
+
 		var userID string
 		var authStatus string
 
@@ -144,7 +144,7 @@ func main() {
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokStr := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 			log.Printf("[AUTH] Processing JWT token (length: %d)", len(tokStr))
-			
+
 			// Parse and validate
 			token, err := jwt.ParseWithClaims(tokStr, &auth.CustomClaims{}, func(t *jwt.Token) (interface{}, error) {
 				// Ensure HMAC is used
@@ -153,7 +153,7 @@ func main() {
 				}
 				return []byte(cfg.JWTSecret), nil
 			})
-			
+
 			if err != nil {
 				log.Printf("[AUTH] ❌ JWT validation failed: %v", err)
 				authStatus = "invalid"
@@ -175,9 +175,9 @@ func main() {
 			log.Printf("[AUTH] No authorization header - anonymous request")
 			authStatus = "anonymous"
 		}
-		
+
 		log.Printf("[AUTH] Request status: %s, UserID: %s", authStatus, userID)
-		
+
 		// Call gqlgen server using r.WithContext(ctx) so resolvers can see it
 		srv.ServeHTTP(w, r.WithContext(newCtx))
 	}))))
@@ -189,7 +189,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))))
-	
+
 	log.Println("[ROUTES] ✅ HTTP routes configured")
 
 	// Set up graceful shutdown
@@ -207,7 +207,7 @@ func main() {
 		log.Printf("🕹  GraphQL playground at http://localhost:%s/", cfg.Port)
 		log.Printf("💚 Health check at http://localhost:%s/health", cfg.Port)
 		log.Printf("📊 Accepting requests from http://localhost:3000 (CORS enabled)")
-		
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[ERROR] Failed to start server: %v", err)
 		}

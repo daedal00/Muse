@@ -23,7 +23,7 @@ import (
 func (r *mutationResolver) CreateUser(ctx context.Context, name string, email string, password string) (*model.User, error) {
 	start := time.Now()
 	log.Printf("[MUTATION] CreateUser started - Email: %s, Name: %s", email, name)
-	
+
 	// 1. Hash password
 	hash, err := auth.HashPassword(password)
 	if err != nil {
@@ -58,7 +58,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, name string, email st
 func (r *mutationResolver) Login(ctx context.Context, email string, password string) (string, error) {
 	start := time.Now()
 	log.Printf("[MUTATION] Login started - Email: %s", email)
-	
+
 	// 1) Look up user in database
 	dbUser, err := r.repos.User.GetByEmail(ctx, email)
 	if err != nil {
@@ -99,7 +99,7 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateReviewInput) (*model.Review, error) {
 	start := time.Now()
 	log.Printf("[MUTATION] CreateReview started - AlbumID: %s, Rating: %d", input.AlbumID, input.Rating)
-	
+
 	// 1) Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
@@ -181,7 +181,7 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.CreatePlaylistInput) (*model.Playlist, error) {
 	start := time.Now()
 	log.Printf("[MUTATION] CreatePlaylist started - Title: %s", input.Title)
-	
+
 	// 1) Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
@@ -288,7 +288,7 @@ func (r *mutationResolver) AddTrackToPlaylist(ctx context.Context, playlistID st
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	start := time.Now()
 	log.Printf("[QUERY] Me started")
-	
+
 	// Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
@@ -322,7 +322,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
 	start := time.Now()
 	log.Printf("[QUERY] User started - ID: %s", id)
-	
+
 	// Parse user ID
 	userID, err := uuid.Parse(id)
 	if err != nil {
@@ -351,7 +351,7 @@ func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string)
 		limit = *first
 	}
 	log.Printf("[QUERY] Albums started - Limit: %d, After: %v", limit, after)
-	
+
 	// Set default limit
 	limitInt := int(limit)
 
@@ -397,7 +397,7 @@ func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string)
 func (r *queryResolver) Album(ctx context.Context, id string) (*model.Album, error) {
 	start := time.Now()
 	log.Printf("[QUERY] Album started - ID: %s", id)
-	
+
 	albumID, err := uuid.Parse(id)
 	if err != nil {
 		log.Printf("[QUERY] Album failed - Invalid album ID: %s", id)
@@ -642,7 +642,7 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 		limit = int(*input.Limit)
 	}
 	log.Printf("[QUERY] SearchAlbums started - Query: '%s', Limit: %d, Source: %s", input.Query, limit, input.Source)
-	
+
 	if r.spotifyServices == nil {
 		log.Printf("[QUERY] SearchAlbums failed - Spotify service not available")
 		return nil, fmt.Errorf("Spotify service not available")
@@ -651,7 +651,7 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 	// Check cache first
 	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
 	log.Printf("[CACHE] Checking cache for albums - Key: %s", cacheKey)
-	
+
 	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "albums"); err == nil && cachedData != nil {
 		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
 			if results, ok := searchData.Results.([]*model.AlbumSearchResult); ok {
@@ -732,7 +732,7 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 		limit = int(*input.Limit)
 	}
 	log.Printf("[QUERY] SearchArtists started - Query: '%s', Limit: %d, Source: %s", input.Query, limit, input.Source)
-	
+
 	if r.spotifyServices == nil {
 		log.Printf("[QUERY] SearchArtists failed - Spotify service not available")
 		return nil, fmt.Errorf("spotify service not available")
@@ -741,7 +741,7 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	// Check cache first
 	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
 	log.Printf("[CACHE] Checking cache for artists - Key: %s", cacheKey)
-	
+
 	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "artists"); err == nil && cachedData != nil {
 		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
 			if results, ok := searchData.Results.([]*model.ArtistSearchResult); ok {
