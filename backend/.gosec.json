@@ -1,8 +1,0 @@
-{
-  "global": {
-    "nosec": "enabled",
-    "audit": "enabled"
-  },
-  "exclude-dir": ["vendor"],
-  "exclude-generated": true
-}
