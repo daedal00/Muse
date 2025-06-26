@@ -273,6 +273,10 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
+      - name: Install dependencies
+        working-directory: ./backend
+        run: go mod download
+
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
