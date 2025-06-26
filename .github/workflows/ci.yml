@@ -168,7 +168,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-          --name redis
         ports:
           - 6379:6379
 
@@ -200,13 +199,7 @@ jobs:
             sleep 2
           done
           echo "PostgreSQL is ready!"
-
-          echo "Waiting for Redis to be ready..."
-          until redis-cli -h localhost -p 6379 ping; do
-            echo "Redis is unavailable - sleeping"
-            sleep 2
-          done
-          echo "Redis is ready!"
+          echo "Redis should be ready (health checks passed)"
 
       - name: Run database migrations
         working-directory: ./backend
@@ -386,7 +379,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-          --name redis
         ports:
           - 6379:6379
 
@@ -418,13 +410,7 @@ jobs:
             sleep 2
           done
           echo "PostgreSQL is ready!"
-
-          echo "Waiting for Redis to be ready..."
-          until redis-cli -h localhost -p 6379 ping; do
-            echo "Redis is unavailable - sleeping"
-            sleep 2
-          done
-          echo "Redis is ready!"
+          echo "Redis should be ready (health checks passed)"
 
       - name: Run database migrations
         working-directory: ./backend
