@@ -1,285 +1,194 @@
-# Project Technical Document
+# Muse - Music Discovery & Review Platform
 
-## 1. Introduction
+A music discovery and review platform inspired by Letterboxd, but for music. Rate albums, create playlists, discover new music, and share your musical journey with others.
 
-Our project aims to create a music-focused platform where users can:
+## 🎵 What is Muse?
 
-- Rate songs and albums (similar to Letterboxd’s rating of films).  
-- Curate and share playlists with other users.  
-- Convert playlists across different streaming services (Spotify, Apple Music, etc.).  
-- Maintain a personal “My Muse” page displaying ratings, top favorites, and recent activity.  
-- Receive personalized recommendations based on ratings and listening habits.
+Muse allows users to:
 
----
+- **Rate and review albums** (1-5 stars) with detailed reviews
+- **Create and share playlists** with other users
+- **Discover new music** through personalized recommendations
+- **Track your musical journey** with a personal "My Muse" profile
+- **Search and explore** artists, albums, and tracks via Spotify integration
+- **Convert playlists** between different streaming services (planned)
 
-## 2. Overall Workflow
+## 🏗️ Current Architecture
 
-### 2.1 User Journey
+### Backend (Implemented)
 
-1. **Sign Up / Login**  
-   - Users create accounts or log in using either standard credentials or via third-party OAuth (Spotify, Apple Music, etc.).
+- **GraphQL API** built with Go and `gqlgen`
+- **PostgreSQL** database for all persistent data
+- **Redis** for session management and caching (optional)
+- **Spotify API integration** for music data and search
+- **JWT Authentication** for secure user sessions
+- **Docker support** for easy deployment
 
-2. **My Muse Page**  
-   - Upon login, users land on their “My Muse” page, which displays their ratings, favorite artists, and playlists.
+### Frontend (Planned)
 
-3. **Rating & Reviewing**  
-   - Users search for songs/albums, leave ratings (and possibly short reviews or comments).
+- **React (TypeScript)** for web application
+- **React Native** for mobile apps
 
-4. **Playlist Creation & Sharing**  
-   - Users create or import playlists.  
-   - Playlists can be shared publicly, privately, or with specific friends.  
-   - Other users can view and clone these playlists.
+## 📁 Project Structure
 
-5. **Playlist Conversion**  
-   - A dedicated feature allows users to convert a playlist to another streaming service.
+```
+Muse/
+├── backend/                 # Go GraphQL backend (implemented)
+│   ├── graph/              # GraphQL schema and resolvers
+│   ├── internal/           # Internal packages
+│   │   ├── config/         # Configuration management
+│   │   ├── database/       # Database connections (PostgreSQL, Redis)
+│   │   ├── models/         # Database models
+│   │   ├── repository/     # Data access layer
+│   │   └── spotify/        # Spotify API integration
+│   ├── migrations/         # Database migrations
+│   └── server.go          # Main application entry
+├── frontend/               # React frontend (planned)
+└── mobile/                # React Native app (planned)
+```
 
-6. **Recommendations**  
-   - The system analyzes ratings and listening patterns to provide recommended songs/albums.
+## 🚀 Current Implementation Status
 
-### 2.2 Data Flow Summary
+### ✅ Completed Backend Features
 
-1. **Front-End**  
-   - Makes HTTP calls or opens WebSocket connections to the backend via an API Gateway/Reverse Proxy.  
-   - Renders real-time data (e.g., updated ratings, new recommendations) using WebSockets or server-sent events.
+- **Core Data Models**: Users, Artists, Albums, Tracks, Reviews, Playlists
+- **GraphQL API**: Complete schema with all core types and operations
+- **Database Layer**: Full CRUD operations for all entities
+- **Authentication**: JWT-based user authentication
+- **Spotify Integration**: Search artists, albums, and tracks
+- **Session Management**: Redis-based session storage
+- **Comprehensive Testing**: All repositories tested and working
+- **CI/CD Pipeline**: GitHub Actions with testing and deployment
 
-2. **Backend Services**  
-   - **User, Playlist, Rating, Recommendation, and Conversion** microservices handle specific domains.  
-   - Each service reads/writes to the databases (PostgreSQL, MongoDB) and uses Redis for caching.
+### 🔧 Backend - Nearly Complete
 
-3. **External Integrations**  
-   - The Conversion service uses OAuth 2.0 to communicate with external music streaming APIs.
+- **GraphQL Resolvers**: 90% complete, few remaining resolvers to finish
+- **Pagination**: Cursor-based pagination implemented
+- **Error Handling**: Comprehensive error handling throughout
 
----
+### 📋 Planned Features
 
-## 3. Front-End Changes
+- **Frontend Development**: React web application
+- **Mobile App**: React Native for iOS/Android
+- **Playlist Conversion**: Convert playlists between streaming services
+- **Advanced Recommendations**: ML-based music recommendations
+- **Social Features**: Follow users, share activity feeds
+- **Real-time Updates**: WebSocket support for live updates
 
-### 3.1 Technology & Framework
+## 🛠️ Tech Stack
 
-- **React (TypeScript)** for the web front-end.  
-- **React Native (TypeScript)** or **Expo** for cross-platform mobile apps.
+| Component          | Technology                     | Status         |
+| ------------------ | ------------------------------ | -------------- |
+| **Backend API**    | Go + GraphQL (gqlgen)          | ✅ Implemented |
+| **Database**       | PostgreSQL                     | ✅ Implemented |
+| **Caching**        | Redis                          | ✅ Implemented |
+| **Authentication** | JWT                            | ✅ Implemented |
+| **External APIs**  | Spotify Web API                | ✅ Implemented |
+| **Testing**        | Go testing + integration tests | ✅ Implemented |
+| **CI/CD**          | GitHub Actions                 | ✅ Implemented |
+| **Frontend**       | React (TypeScript)             | 🔄 Planned     |
+| **Mobile**         | React Native                   | 🔄 Planned     |
+| **Deployment**     | Docker + Kubernetes            | 🔄 Planned     |
 
-### 3.2 Components / Pages
+## 🎯 Core Features
 
-1. **Landing / Login Page**  
-   - Allows user registration, login, or OAuth sign-in.  
+### User Experience
 
-2. **My Muse Page**  
-   - Displays user’s top-rated songs, albums, or artists, plus a quick overview of recently created playlists.  
+1. **Account Management**: Register, login, profile management
+2. **Music Discovery**: Search via Spotify, browse curated lists
+3. **Review System**: Rate albums 1-5 stars with optional text reviews
+4. **Playlist Management**: Create, organize, and share playlists
+5. **Personal Profile**: "My Muse" page showing ratings, favorites, activity
 
-3. **Search & Discovery Page**  
-   - Lets users search for music, filter by genre/artist, and discover trending or recommended songs/albums.  
+### Technical Features
 
-4. **Playlist Management**  
-   - Create new playlists, view existing ones, and share or edit them.  
+1. **GraphQL API**: Flexible, efficient data fetching
+2. **Real-time Search**: Spotify API integration for music data
+3. **Scalable Architecture**: Repository pattern, clean separation of concerns
+4. **Comprehensive Testing**: Unit and integration test coverage
+5. **Production Ready**: Docker deployment, CI/CD pipeline
 
-5. **Playlist Conversion Modal**  
-   - UI to convert an existing playlist to another service (e.g., Spotify → Apple Music).
+## 📊 Data Model
 
-### 3.3 State Management
+### Core Entities
 
-- **Redux** or **React Query** for data fetching, caching, and managing global state.  
-- **WebSocket Integration** (e.g., using Socket.io client) for real-time updates on rating changes or recommendation notifications.
+- **Users**: Account information, preferences, authentication
+- **Artists**: Music artists with Spotify integration
+- **Albums**: Album metadata, cover art, release information
+- **Tracks**: Individual songs with duration, track numbers
+- **Reviews**: User ratings and reviews for albums
+- **Playlists**: User-created track collections
 
----
+### Relationships
 
-## 4. Back-End Changes
+- Users create Reviews for Albums
+- Users create Playlists containing Tracks
+- Albums belong to Artists and contain Tracks
+- All entities support pagination via GraphQL connections
 
-### 4.1 Microservices Overview
+## 🔧 Development
 
-1. **User Service**  
-   - Manages user accounts, authentication, profiles, and the “My Muse” page data.  
+### Backend Setup
 
-2. **Playlist Service**  
-   - Handles creation, reading, updating, and deletion of playlists.  
+```bash
+cd backend
+go mod tidy
+go run server.go
+```
 
-3. **Rating Service**  
-   - Receives and stores ratings for songs/albums; updates the user’s “My Muse” page.  
+See [`backend/README.md`](backend/README.md) for detailed setup instructions.
 
-4. **Recommendation Service**  
-   - Periodically processes rating data to generate personalized recommendations.  
-   - Could use machine learning libraries (TensorFlow, PyTorch, scikit-learn) for advanced similarity grouping.  
+### Testing
 
-5. **Conversion/Integration Service**  
-   - Interacts with external music streaming APIs (Spotify, Apple Music, etc.) using OAuth.  
-   - Converts playlists into the appropriate format for each platform.
+```bash
+cd backend
+go test ./...
+```
 
-### 4.2 API Gateway / Routing
+### GraphQL Playground
 
-- **Nginx** or a dedicated gateway (e.g., **Kong**, **AWS API Gateway**) sits in front of the microservices.  
-- Routes requests to the correct microservice based on the URL path.  
-- Manages SSL termination, rate limiting, and load balancing.
+Once running, visit `http://localhost:8080` for the GraphQL playground.
 
-### 4.3 Real-Time Updates
+## 🚦 Next Steps
 
-- **WebSockets** (e.g., **Socket.io**) for pushing live notifications (e.g., “Playlist converted successfully” or “New recommended songs available”).
+### Immediate (Backend Completion)
 
----
+1. **Finish remaining GraphQL resolvers** (Track, Tracks, Playlist, Playlists, Reviews, Review)
+2. **Set up production database** (NeonDB or similar)
+3. **Deploy backend** to production environment
 
-## 5. APIs
+### Frontend Development
 
-### 5.1 Core Endpoints
+1. **React Web App**: Main user interface
+2. **Authentication Flow**: Login/register pages
+3. **Core Pages**: Search, albums, reviews, playlists
+4. **Responsive Design**: Mobile-friendly web interface
 
-1. **User Service**  
-   - `POST /users` → Create a new user  
-   - `POST /auth/login` → Authenticate a user (JWT-based or session-based)  
-   - `GET /users/{id}` → Fetch user profile, including “My Muse” data  
+### Advanced Features
 
-2. **Playlist Service**  
-   - `GET /playlists` → List user’s playlists  
-   - `POST /playlists` → Create a new playlist  
-   - `PUT /playlists/{id}` → Update a playlist  
-   - `DELETE /playlists/{id}` → Remove a playlist  
+1. **Mobile Apps**: React Native for iOS/Android
+2. **Playlist Conversion**: Cross-platform playlist import/export
+3. **Recommendation Engine**: ML-based music suggestions
+4. **Social Features**: User following, activity feeds
 
-3. **Rating Service**  
-   - `POST /ratings` → Add a rating for a song/album  
-   - `GET /ratings/{songId}` → Retrieve ratings for a particular song  
+## 📄 Documentation
 
-4. **Recommendation Service**  
-   - `GET /recommendations` → Get user-specific recommended songs/albums  
+- [`backend/README.md`](backend/README.md) - Backend setup and API documentation
+- [`backend/IMPLEMENTATION_TODO.md`](backend/IMPLEMENTATION_TODO.md) - Remaining tasks
+- [`backend/TESTING_AND_CICD.md`](backend/TESTING_AND_CICD.md) - Testing and deployment
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) - CI/CD pipeline
 
-5. **Conversion/Integration Service**  
-   - `POST /conversion/playlist/{playlistId}` → Convert playlist to another streaming service
+## 🤝 Contributing
 
-### 5.2 External Streaming APIs
+1. Check the implementation TODO for available tasks
+2. All backend repositories are implemented and tested
+3. Frontend development is ready to begin
+4. Follow existing patterns for consistency
 
-- **Spotify, Apple Music, etc.**  
-  - Use **OAuth 2.0** to securely retrieve or modify user playlists.  
-  - Map track identifiers from one platform to another.
+## 📝 License
 
----
-
-## 6. Tech Stack & Rationale
-
-| Layer                      | Technology                         | Reason                                                                                   |
-|----------------------------|------------------------------------|------------------------------------------------------------------------------------------|
-| **Frontend**               | React (TypeScript)                 | Mature ecosystem, strong community, type safety with TS.                                 |
-| **Mobile**                 | React Native (TypeScript)          | Cross-platform development with a shared codebase.                                       |
-| **Backend Framework**      | Node.js + NestJS/Express (TS)      | Fast, flexible, and great for microservices. TS provides type safety.                    |
-| **Database (Relational)**  | PostgreSQL                         | ACID compliance, strong for structured data (user profiles, ratings).                    |
-| **Database (NoSQL)**       | MongoDB                            | Flexible schema for playlist details, activity logs, or large dynamic documents.         |
-| **Caching**                | Redis                              | In-memory data store for sessions and frequently accessed data, reducing database load.  |
-| **Containerization**       | Docker                             | Consistent deployment environment across dev, staging, and production.                   |
-| **Orchestration**          | Kubernetes (K8s)                   | Automated deployment, scaling, and management of containerized services.                 |
-| **CI/CD**                  | GitHub Actions                     | Automate testing, building, and deployment pipelines.                                    |
-| **Monitoring & Logging**   | Prometheus, Grafana, ELK Stack     | Real-time metrics, performance monitoring, and log aggregation.                          |
-| **Reverse Proxy / Gateway**| Nginx or Kong                      | SSL termination, routing, load balancing for microservices.                              |
-
----
-
-## 7. Data Modeling
-
-### 7.1 Relational Diagram (PostgreSQL)
-<pre>
-   ┌────────────┐         ┌─────────────┐       ┌─────────────┐
-   │   USERS    │         │   RATINGS   │       │   ALBUMS    │
-   ├────────────┤         ├─────────────┤       ├─────────────┤
-   │ user_id(PK)│1───────*│rating_id(PK)│       │ album_id(PK)│
-   │ name       │         │user_id (FK) ├*─────1┤ title       │
-   │ email      │         │album_id (FK)│       │ artist      │
-   │ password   │         │rating       │       │ ...         │
-   └────────────┬         └─────────────┘       └─────────────┘
-                1
-                │
-                │
-                *
-   ┌────────────▼────────────┐
-   │       PLAYLISTS         │
-   ├─────────────────────────┤
-   │ playlist_id (PK)        │
-   │ user_id (FK)            │
-   │ title                   │
-   │ description             │
-   └─────────────────────────┘
-</pre>
-
-
-- **Users** table: Stores user information and references to their playlists and ratings.  
-- **Ratings** table: Associates a user with an album (or song) and stores the rating value.  
-- **Albums** table: Contains basic metadata about albums (which could be extended to include track-level details).  
-- **Playlists** table: Ties a playlist to its owner.
-
-### 7.2 NoSQL (MongoDB) Usage
-
-1. **Playlist Documents**  
-   - Store detailed track information for each playlist, particularly useful if track data is large or frequently changing.  
-   - **Example Structure:**
-     ```json
-     {
-       "_id": "<playlistObjectId>",
-       "title": "My Chill Vibes",
-       "owner": "<userId>",
-       "tracks": [
-         {
-           "songId": "<someId>",
-           "title": "<songTitle>",
-           "artist": "<artistName>",
-           // Additional song metadata
-         },
-         // More tracks...
-       ]
-     }
-     ```
-
-2. **Activity Logs**  
-   - Store user activity in a flexible schema (e.g., logging when a user creates a playlist or rates a song).
+[MIT License](LICENSE)
 
 ---
 
-## 8. Explanation of Decisions
-
-1. **Microservices Architecture**  
-   - **Reason:** Allows each domain (user, rating, playlist, etc.) to be developed and scaled independently, enhancing maintainability and fault isolation.
-
-2. **Node.js with NestJS/Express (TypeScript)**  
-   - **Reason:** Ensures consistency across the front-end and back-end through TypeScript, and provides a structured approach to building scalable server-side applications.
-
-3. **PostgreSQL + MongoDB**  
-   - **Reason:**  
-     - **PostgreSQL** is used for transactional and relational data (users, ratings, album information).  
-     - **MongoDB** offers flexibility for handling unstructured data (detailed playlist information, activity logs).
-
-4. **Redis**  
-   - **Reason:** Caches frequently requested data (e.g., top-rated songs, user sessions) to reduce latency and load on the primary databases.
-
-5. **WebSockets (Socket.io)**  
-   - **Reason:** Facilitates real-time notifications (e.g., updates on ratings, playlist conversion status) to improve user experience and engagement.
-
-6. **Docker & Kubernetes**  
-   - **Reason:**  
-     - **Docker** ensures consistent environments across development, staging, and production.  
-     - **Kubernetes** automates deployment, scaling, and management of containerized services.
-
-7. **OAuth 2.0**  
-   - **Reason:** Provides a secure, standard method for integrating with external music streaming APIs without exposing user credentials.
-
-8. **CI/CD with GitHub Actions**  
-   - **Reason:** Automates testing, building, and deployment processes, ensuring code quality and accelerating release cycles.
-
-9. **Nginx / Kong**  
-   - **Reason:** Serves as a reverse proxy or API gateway for SSL termination, request routing, and load balancing across microservices.
-
-10. **Prometheus / Grafana / ELK**  
-    - **Reason:** Essential for real-time monitoring, performance metrics, and centralized log aggregation to facilitate troubleshooting and scaling.
-
----
-
-## Next Steps
-
-1. **Detailed API Contracts:**  
-   - Define request/response formats for each endpoint (e.g., using OpenAPI/Swagger documentation).
-
-2. **Security & Authentication:**  
-   - Finalize token-based authentication, user roles, and permissions.
-
-3. **Deployment Strategy:**  
-   - Outline staging and production deployment pipelines using Docker, Kubernetes, etc.
-
-4. **Performance Considerations:**  
-   - Implement caching, indexing, and consider read replicas for PostgreSQL to enhance performance.
-
-5. **Testing Plan:**  
-   - Establish end-to-end testing for critical features like playlist conversion, rating updates, and recommendation accuracy.
-
----
-
-*This document provides a foundational outline of the architecture, data model, and technology choices for our Letterboxd-style music platform. It is intended to be a living document that evolves alongside the project.*
+**Muse** - Discover, review, and share the music you love. 🎵

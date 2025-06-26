@@ -1,0 +1,479 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GO_VERSION: "1.21"
+  POSTGRES_VERSION: "15"
+  REDIS_VERSION: "7"
+
+jobs:
+  # Job 1: Lint and basic checks
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Verify Go modules
+        working-directory: ./backend
+        run: go mod verify
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: ./backend
+          args: --timeout=5m
+
+      - name: Check Go formatting
+        working-directory: ./backend
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "The following files are not formatted:"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        working-directory: ./backend
+        run: go vet ./...
+
+  # Job 2: Build and compile check
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Build application
+        working-directory: ./backend
+        run: go build -v -o muse-backend .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muse-backend-${{ github.sha }}
+          path: backend/muse-backend
+          retention-days: 7
+
+  # Job 3: Unit tests (without database dependencies)
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Run unit tests (excluding database-dependent tests)
+        working-directory: ./backend
+        run: |
+          echo "=== RUNNING UNIT TESTS (NO DATABASE) ==="
+          # Run tests that don't require database - exclude postgres repository tests
+          go test -short -race -coverprofile=coverage.out -covermode=atomic \
+            $(go list ./... | grep -v '/internal/repository/postgres')
+
+      - name: Display test coverage summary
+        working-directory: ./backend
+        run: |
+          echo "=== UNIT TEST COVERAGE SUMMARY ==="
+          if [ -f coverage.out ]; then
+            go tool cover -func=coverage.out | tail -1
+            echo ""
+            echo "=== DETAILED COVERAGE BY PACKAGE ==="
+            go tool cover -func=coverage.out | grep -v "total:"
+          else
+            echo "No coverage file generated - no unit tests ran"
+          fi
+
+      - name: Upload coverage to Codecov (optional)
+        uses: codecov/codecov-action@v4
+        if: env.CODECOV_TOKEN != ''
+        with:
+          file: ./backend/coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # Job 4: Integration tests with database
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [lint, build]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: muse_user
+          POSTGRES_PASSWORD: muse_password
+          POSTGRES_DB: muse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      # Note: Using external Redis Cloud service instead of local Redis container
+      # redis:
+      #   image: redis:7-alpine
+      #   options: >-
+      #     --health-cmd "redis-cli ping"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
+      #   ports:
+      #     - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Install migrate tool
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/local/bin/
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h localhost -p 5432 -U muse_user; do
+            echo "PostgreSQL is unavailable - sleeping"
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+          echo "Using external Redis Cloud service"
+
+      - name: Run database migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://muse_user:muse_password@localhost:5432/muse_test?sslmode=disable
+        run: |
+          # Run migrations
+          migrate -path migrations -database "$DATABASE_URL" up
+
+      - name: Run integration tests
+        working-directory: ./backend
+        env:
+          ENVIRONMENT: test
+          PORT: 8080
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          SPOTIFY_REDIRECT_URL: http://localhost:8080/callback
+          JWT_SECRET: test-jwt-secret-for-ci-only
+          # Use the test database created by the postgres service
+          DATABASE_URL: postgres://muse_user:muse_password@localhost:5432/muse_test?sslmode=disable
+          # Use Redis Cloud connection
+          REDIS_ADDR: ${{ secrets.REDIS_ADDR }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: 0
+        run: |
+          echo "=== RUNNING ALL TESTS (INCLUDING DATABASE-DEPENDENT) ==="
+          echo "Connecting to Redis Cloud at $REDIS_ADDR..."
+          echo "Connecting to PostgreSQL at $DATABASE_URL"
+          go test -v -race -coverprofile=integration-coverage.out ./...
+
+      - name: Display integration test coverage summary
+        working-directory: ./backend
+        run: |
+          echo "=== INTEGRATION TEST COVERAGE SUMMARY ==="
+          go tool cover -func=integration-coverage.out | tail -1
+          echo ""
+          echo "=== PACKAGES WITH ACTUAL TESTS ==="
+          go tool cover -func=integration-coverage.out | grep -v ":0.0%" || echo "No packages with > 0% coverage found"
+
+      - name: Upload integration test coverage (optional)
+        uses: codecov/codecov-action@v4
+        if: env.CODECOV_TOKEN != ''
+        with:
+          file: ./backend/integration-coverage.out
+          flags: integrationtests
+          name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # Job 5: Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          go mod download
+          go mod verify
+          go mod tidy
+
+      - name: Build to check compilation
+        working-directory: ./backend
+        run: go build -o /dev/null ./...
+
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: "-exclude-generated ./..."
+        env:
+          WORKING_DIRECTORY: backend
+          GO111MODULE: on
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results-${{ github.run_number }}
+          path: backend/gosec-report.json
+
+  # Job 6: Docker build and push (only on main branch)
+  docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [build, unit-tests, integration-tests]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/muse-backend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 7: Deploy to staging (optional, only on main branch)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying to staging environment"
+          echo "Image: ${{ secrets.DOCKER_USERNAME }}/muse-backend:${{ github.sha }}"
+          # Add your deployment script here
+          # For example, update a Kubernetes deployment, call a webhook, etc.
+
+      - name: Run smoke tests
+        run: |
+          echo "🧪 Running smoke tests against staging"
+          # Add smoke tests here
+          # For example, check if the health endpoint returns 200
+
+  # Job 8: Performance tests (optional, only if benchmarks exist)
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [integration-tests]
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: muse_user
+          POSTGRES_PASSWORD: muse_password
+          POSTGRES_DB: muse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      # Note: Using external Redis Cloud service instead of local Redis container
+      # redis:
+      #   image: redis:7-alpine
+      #   options: >-
+      #     --health-cmd "redis-cli ping"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
+      #   ports:
+      #     - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Install migrate tool
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/local/bin/
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h localhost -p 5432 -U muse_user; do
+            echo "PostgreSQL is unavailable - sleeping"
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+          echo "Using external Redis Cloud service"
+
+      - name: Run database migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://muse_user:muse_password@localhost:5432/muse_test?sslmode=disable
+        run: |
+          migrate -path migrations -database "$DATABASE_URL" up
+
+      - name: Check for benchmark tests
+        id: check-benchmarks
+        working-directory: ./backend
+        run: |
+          if grep -r "func Benchmark" . --include="*_test.go" > /dev/null 2>&1; then
+            echo "benchmarks_exist=true" >> $GITHUB_OUTPUT
+            echo "Found benchmark functions"
+          else
+            echo "benchmarks_exist=false" >> $GITHUB_OUTPUT
+            echo "No benchmark functions found - skipping performance tests"
+          fi
+
+      - name: Run performance benchmarks
+        if: steps.check-benchmarks.outputs.benchmarks_exist == 'true'
+        working-directory: ./backend
+        env:
+          ENVIRONMENT: test
+          PORT: 8080
+          SPOTIFY_CLIENT_ID: test-client-id
+          SPOTIFY_CLIENT_SECRET: test-secret
+          SPOTIFY_REDIRECT_URL: http://localhost:8080/callback
+          JWT_SECRET: test-jwt-secret-for-ci-only
+          # Use the test database created by the postgres service
+          DATABASE_URL: postgres://muse_user:muse_password@localhost:5432/muse_test?sslmode=disable
+          # Use Redis Cloud connection
+          REDIS_ADDR: ${{ secrets.REDIS_ADDR }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: 0
+        run: |
+          echo "=== RUNNING PERFORMANCE BENCHMARKS ==="
+          echo "Connecting to Redis Cloud at $REDIS_ADDR..."
+          echo "Connecting to PostgreSQL at $DATABASE_URL"
+          go test -bench=. -benchmem -run=^$ ./... | tee benchmark-results.txt
+
+      - name: Upload benchmark results
+        if: steps.check-benchmarks.outputs.benchmarks_exist == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: backend/benchmark-results.txt
+          retention-days: 30
+
+      - name: Skip benchmarks message
+        if: steps.check-benchmarks.outputs.benchmarks_exist == 'false'
+        run: |
+          echo "⚠️  No benchmark functions found. To add performance tests:"
+          echo "   1. Create functions starting with 'func Benchmark' in *_test.go files"
+          echo "   2. Example: func BenchmarkMyFunction(b *testing.B) { ... }"

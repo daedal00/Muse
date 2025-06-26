@@ -11,6 +11,8 @@ import (
 
 	"github.com/daedal00/muse/backend/auth"
 	"github.com/daedal00/muse/backend/graph/model"
+	"github.com/daedal00/muse/backend/internal/models"
+	redisrepo "github.com/daedal00/muse/backend/internal/repository/redis"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	spotifyapi "github.com/zmb3/spotify/v2"
@@ -24,47 +26,41 @@ func (r *mutationResolver) CreateUser(ctx context.Context, name string, email st
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// 2. Generate uuid for user
-	id := uuid.New().String()
-
-	// 3. Build GraphQL user model
-	user := &model.User{
-		ID:    id,
-		Name:  name,
-		Email: email,
+	// 2. Create database user model
+	dbUser := &models.User{
+		ID:           uuid.New(),
+		Name:         name,
+		Email:        email,
+		PasswordHash: hash,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
-	// 4. Store in memory
-	r.users = append(r.users, user)
-	r.passwordHashes[id] = hash
+	// 3. Store in database
+	if err := r.repos.User.Create(ctx, dbUser); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
 
-	// 5. Return newly created user
-	return user, nil
+	// 4. Convert to GraphQL model and return
+	return dbUserToGraphQL(dbUser), nil
 }
 
 // Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, email string, password string) (string, error) {
-	// 1) Lookup user in memory for now
-	var found *model.User
-	for _, u := range r.users {
-		if u.Email == email {
-			found = u
-			break
-		}
-	}
-	if found == nil {
+	// 1) Look up user in database
+	dbUser, err := r.repos.User.GetByEmail(ctx, email)
+	if err != nil {
 		return "", fmt.Errorf("invalid credentials")
 	}
 
 	// 2) Verify password against stored hash
-	hash := r.passwordHashes[found.ID]
-	if !auth.VerifyPassword(password, hash) {
+	if !auth.VerifyPassword(password, dbUser.PasswordHash) {
 		return "", fmt.Errorf("invalid credentials")
 	}
 
 	// 3) Sign JWT Token
 	claims := auth.CustomClaims{
-		UserID: found.ID,
+		UserID: dbUser.ID.String(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -72,12 +68,12 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString((auth.JWTSecret))
+	signedToken, err := token.SignedString([]byte(r.config.JWTSecret))
 	if err != nil {
 		return "", fmt.Errorf("could not sign token: %w", err)
 	}
 
-	// 4) return JWT token
+	// 4) Return JWT token
 	return signedToken, nil
 }
 
@@ -86,49 +82,69 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 	// 1) Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
-		return nil, fmt.Errorf("unauthenciated")
+		return nil, fmt.Errorf("unauthenticated")
 	}
 	currentUserID := raw.(string)
 
-	// 2) lookup userID in users
-	var reviewer *model.User
-	for _, u := range r.users {
-		if u.ID == currentUserID {
-			reviewer = u
-			break
-		}
-	}
-	if reviewer == nil {
-		return nil, fmt.Errorf("authenticated user not found in store")
+	// Parse current user ID
+	userID, err := uuid.Parse(currentUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
 	}
 
-	// 3) Look up *model.Album by supplied input.AlbumID
-	var album *model.Album
-	for _, a := range r.albums {
-		if a.ID == input.AlbumID {
-			album = a
-			break
-		}
-	}
-	if album == nil {
-		return nil, fmt.Errorf("invalid album id (ID=%s)", input.AlbumID)
+	// Parse album ID
+	albumID, err := uuid.Parse(input.AlbumID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid album ID")
 	}
 
-	// 4) Build Review object
-	review := &model.Review{
-		ID:         uuid.NewString(),
-		User:       reviewer,
-		Album:      album,
-		Rating:     input.Rating,
+	// Validate rating range
+	if input.Rating < 1 || input.Rating > 5 {
+		return nil, fmt.Errorf("rating must be between 1 and 5")
+	}
+
+	// Create database review model
+	dbReview := &models.Review{
+		ID:         uuid.New(),
+		UserID:     userID,
+		AlbumID:    albumID,
+		Rating:     int(input.Rating),
 		ReviewText: input.ReviewText,
-		CreatedAt:  time.Now().Format(time.RFC3339),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
-	// 5) Store in memory so future queries can view
-	r.reviews = append(r.reviews, review)
+	// Store in database using review repository
+	if err := r.repos.Review.Create(ctx, dbReview); err != nil {
+		return nil, fmt.Errorf("failed to create review: %w", err)
+	}
 
-	// 6) Return newly created review
-	return review, nil
+	// Cache this album as recently viewed by the user (async, don't fail on error)
+	go func() {
+		// Create a background context for the cache operation
+		cacheCtx := context.Background()
+
+		// Get album tracks for more complete cache data
+		tracks, trackErr := r.repos.Track.GetByAlbumID(cacheCtx, albumID, 50, 0)
+		if trackErr == nil && len(tracks) > 0 {
+			// Add the first track as recently played (representing album interaction)
+			if err := r.repos.MusicCache.AddToRecentlyPlayed(cacheCtx, userID, tracks[0]); err != nil {
+				// Log the error but don't fail the mutation
+				fmt.Printf("Warning: Failed to add track to recently played: %v\n", err)
+			}
+		}
+	}()
+
+	// Convert to GraphQL model
+	graphqlReview := dbReviewToGraphQL(dbReview)
+
+	// Publish to subscription manager for real-time updates
+	if err := r.subscriptionMgr.PublishReview(ctx, graphqlReview); err != nil {
+		// Log error but don't fail the mutation
+		fmt.Printf("Warning: Failed to publish review to subscribers: %v\n", err)
+	}
+
+	return graphqlReview, nil
 }
 
 // CreatePlaylist is the resolver for the createPlaylist field.
@@ -136,42 +152,95 @@ func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.Creat
 	// 1) Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
-		return nil, fmt.Errorf("unauthenciated")
+		return nil, fmt.Errorf("unauthenticated")
 	}
 	currentUserID := raw.(string)
 
-	// 2) lookup userID in users
-	var creator *model.User
-	for _, u := range r.users {
-		if u.ID == currentUserID {
-			creator = u
-			break
-		}
-	}
-	if creator == nil {
-		return nil, fmt.Errorf("authenticated user not found in store")
+	// Parse current user ID
+	userID, err := uuid.Parse(currentUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
 	}
 
-	// 3) Create playlist object
-	playlist := &model.Playlist{
-		ID:          uuid.NewString(),
+	// Validate input
+	if input.Title == "" {
+		return nil, fmt.Errorf("playlist title cannot be empty")
+	}
+
+	// Create database playlist model
+	dbPlaylist := &models.Playlist{
+		ID:          uuid.New(),
 		Title:       input.Title,
 		Description: input.Description,
-		CoverImage:  input.CoverImage, // URL stored in S3 bucket
-		Creator:     creator,
-		CreatedAt:   time.Now().Format(time.RFC3339),
+		CoverImage:  input.CoverImage,
+		CreatorID:   userID,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 
-	// 4) store in memory
-	r.playlists = append(r.playlists, playlist)
+	// Store in database using playlist repository
+	if err := r.repos.Playlist.Create(ctx, dbPlaylist); err != nil {
+		return nil, fmt.Errorf("failed to create playlist: %w", err)
+	}
 
-	// 5) Return newly created playlist
-	return playlist, nil
+	// Convert to GraphQL model and return
+	return dbPlaylistToGraphQL(dbPlaylist), nil
 }
 
 // AddTrackToPlaylist is the resolver for the addTrackToPlaylist field.
 func (r *mutationResolver) AddTrackToPlaylist(ctx context.Context, playlistID string, trackID string) (*model.Playlist, error) {
-	panic(fmt.Errorf("not implemented: AddTrackToPlaylist - addTrackToPlaylist"))
+	// Extract UserID from Context
+	raw := ctx.Value(UserIDKey)
+	if raw == nil {
+		return nil, fmt.Errorf("unauthenticated")
+	}
+	currentUserID := raw.(string)
+
+	// Parse IDs
+	pID, err := uuid.Parse(playlistID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid playlist ID")
+	}
+
+	tID, err := uuid.Parse(trackID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid track ID")
+	}
+
+	userID, err := uuid.Parse(currentUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
+	// Verify playlist exists and user has permission
+	dbPlaylist, err := r.repos.Playlist.GetByID(ctx, pID)
+	if err != nil {
+		return nil, fmt.Errorf("playlist not found: %w", err)
+	}
+
+	if dbPlaylist.CreatorID != userID {
+		return nil, fmt.Errorf("unauthorized: you can only modify your own playlists")
+	}
+
+	// Verify track exists
+	_, err = r.repos.Track.GetByID(ctx, tID)
+	if err != nil {
+		return nil, fmt.Errorf("track not found: %w", err)
+	}
+
+	// Add track to playlist (position 0 means append to end)
+	err = r.repos.Playlist.AddTrack(ctx, pID, tID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add track to playlist: %w", err)
+	}
+
+	// Return updated playlist
+	updatedPlaylist, err := r.repos.Playlist.GetByID(ctx, pID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch updated playlist: %w", err)
+	}
+
+	return dbPlaylistToGraphQL(updatedPlaylist), nil
 }
 
 // Me is the resolver for the me field.
@@ -183,66 +252,311 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	}
 	currentUserID := raw.(string)
 
-	// Look up user in memory store
-	for _, u := range r.users {
-		if u.ID == currentUserID {
-			return u, nil
-		}
+	// Parse user ID
+	userID, err := uuid.Parse(currentUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
 	}
 
-	return nil, fmt.Errorf("user not found")
+	// Look up user in database
+	dbUser, err := r.repos.User.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	return dbUserToGraphQL(dbUser), nil
 }
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
-	// Look up user by ID
-	for _, u := range r.users {
-		if u.ID == id {
-			return u, nil
-		}
+	// Parse user ID
+	userID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
 	}
 
-	return nil, fmt.Errorf("user not found")
+	// Look up user in database
+	dbUser, err := r.repos.User.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	return dbUserToGraphQL(dbUser), nil
 }
 
 // Albums is the resolver for the albums field.
 func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string) (*model.AlbumConnection, error) {
-	panic(fmt.Errorf("not implemented: Albums - albums"))
+	// Set default limit
+	limit := 10
+	if first != nil {
+		limit = int(*first)
+	}
+
+	// Use pagination helper for improved cursor-based pagination
+	albums, hasNextPage, err := r.paginationHelper.GetAlbumsWithCursor(ctx, limit, after)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch albums: %w", err)
+	}
+
+	// Convert database models to GraphQL models and create edges
+	edges := make([]*model.AlbumEdge, len(albums))
+	for i, album := range albums {
+		edges[i] = &model.AlbumEdge{
+			Cursor: r.paginationHelper.EncodeCursor(album.ID.String(), album.CreatedAt, i),
+			Node:   dbAlbumToGraphQL(album),
+		}
+	}
+
+	// Get total count for the connection
+	totalCount := len(edges) // Simplified total count using current page size
+
+	// Create page info
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.AlbumConnection{
+		TotalCount: safeLenToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
 }
 
 // Album is the resolver for the album field.
 func (r *queryResolver) Album(ctx context.Context, id string) (*model.Album, error) {
-	panic(fmt.Errorf("not implemented: Album - album"))
+	albumID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid album ID")
+	}
+
+	dbAlbum, err := r.repos.Album.GetByID(ctx, albumID)
+	if err != nil {
+		return nil, fmt.Errorf("album not found: %w", err)
+	}
+
+	return dbAlbumToGraphQL(dbAlbum), nil
 }
 
 // Tracks is the resolver for the tracks field.
 func (r *queryResolver) Tracks(ctx context.Context, first *int32, after *string) (*model.TrackConnection, error) {
-	panic(fmt.Errorf("not implemented: Tracks - tracks"))
+	// Set default limit
+	limit := 10
+	if first != nil {
+		limit = int(*first)
+	}
+
+	// Use pagination helper for improved cursor-based pagination
+	tracks, hasNextPage, err := r.paginationHelper.GetTracksWithCursor(ctx, limit, after)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tracks: %w", err)
+	}
+
+	// Convert database models to GraphQL models and create edges
+	edges := make([]*model.TrackEdge, len(tracks))
+	for i, track := range tracks {
+		edges[i] = &model.TrackEdge{
+			Cursor: r.paginationHelper.EncodeCursor(track.ID.String(), track.CreatedAt, i),
+			Node:   dbTrackToGraphQL(track),
+		}
+	}
+
+	// Get total count for the connection
+	totalCount := len(edges) // Simplified total count using current page size
+
+	// Create page info
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.TrackConnection{
+		TotalCount: safeLenToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
 }
 
 // Track is the resolver for the track field.
 func (r *queryResolver) Track(ctx context.Context, id string) (*model.Track, error) {
-	panic(fmt.Errorf("not implemented: Track - track"))
+	trackID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid track ID")
+	}
+
+	dbTrack, err := r.repos.Track.GetByID(ctx, trackID)
+	if err != nil {
+		return nil, fmt.Errorf("track not found: %w", err)
+	}
+
+	return dbTrackToGraphQL(dbTrack), nil
 }
 
 // Playlists is the resolver for the playlists field.
 func (r *queryResolver) Playlists(ctx context.Context, first *int32, after *string) (*model.PlaylistConnection, error) {
-	panic(fmt.Errorf("not implemented: Playlists - playlists"))
+	// Set default limit
+	limit := 10
+	if first != nil {
+		limit = int(*first)
+	}
+
+	// Use pagination helper for improved cursor-based pagination
+	playlists, hasNextPage, err := r.paginationHelper.GetPlaylistsWithCursor(ctx, limit, after)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch playlists: %w", err)
+	}
+
+	// Convert database models to GraphQL models and create edges
+	edges := make([]*model.PlaylistEdge, len(playlists))
+	for i, playlist := range playlists {
+		edges[i] = &model.PlaylistEdge{
+			Cursor: r.paginationHelper.EncodeCursor(playlist.ID.String(), playlist.CreatedAt, i),
+			Node:   dbPlaylistToGraphQL(playlist),
+		}
+	}
+
+	// Get total count for the connection
+	totalCount := len(edges) // Simplified total count using current page size
+
+	// Create page info
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.PlaylistConnection{
+		TotalCount: safeLenToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
 }
 
 // Playlist is the resolver for the playlist field.
 func (r *queryResolver) Playlist(ctx context.Context, id string) (*model.Playlist, error) {
-	panic(fmt.Errorf("not implemented: Playlist - playlist"))
+	playlistID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid playlist ID")
+	}
+
+	dbPlaylist, err := r.repos.Playlist.GetByID(ctx, playlistID)
+	if err != nil {
+		return nil, fmt.Errorf("playlist not found: %w", err)
+	}
+
+	return dbPlaylistToGraphQL(dbPlaylist), nil
 }
 
 // Reviews is the resolver for the reviews field.
 func (r *queryResolver) Reviews(ctx context.Context, first *int32, after *string) (*model.ReviewConnection, error) {
-	panic(fmt.Errorf("not implemented: Reviews - reviews"))
+	// Set default limit
+	limit := 10
+	if first != nil {
+		limit = int(*first)
+	}
+
+	// Use pagination helper for improved cursor-based pagination
+	reviews, hasNextPage, err := r.paginationHelper.GetReviewsWithCursor(ctx, limit, after)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch reviews: %w", err)
+	}
+
+	// Convert database models to GraphQL models and create edges
+	edges := make([]*model.ReviewEdge, len(reviews))
+	for i, review := range reviews {
+		edges[i] = &model.ReviewEdge{
+			Cursor: r.paginationHelper.EncodeCursor(review.ID.String(), review.CreatedAt, i),
+			Node:   dbReviewToGraphQL(review),
+		}
+	}
+
+	// Get total count for the connection
+	totalCount := len(edges) // Simplified total count using current page size
+
+	// Create page info
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.ReviewConnection{
+		TotalCount: safeLenToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
 }
 
 // Review is the resolver for the review field.
 func (r *queryResolver) Review(ctx context.Context, id string) (*model.Review, error) {
-	panic(fmt.Errorf("not implemented: Review - review"))
+	reviewID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid review ID")
+	}
+
+	dbReview, err := r.repos.Review.GetByID(ctx, reviewID)
+	if err != nil {
+		return nil, fmt.Errorf("review not found: %w", err)
+	}
+
+	return dbReviewToGraphQL(dbReview), nil
+}
+
+// RecentlyPlayed is the resolver for the recentlyPlayed field.
+func (r *queryResolver) RecentlyPlayed(ctx context.Context, limit *int32) ([]*model.Track, error) {
+	// Extract UserID from Context (must be authenticated)
+	raw := ctx.Value(UserIDKey)
+	if raw == nil {
+		return nil, fmt.Errorf("unauthenticated")
+	}
+	currentUserID := raw.(string)
+
+	// Parse user ID
+	userID, err := uuid.Parse(currentUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
+	// Get cached music data
+	cachedData, err := r.repos.MusicCache.GetUserMusicData(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user music data: %w", err)
+	}
+
+	if cachedData == nil {
+		// No cached data, return empty list
+		return []*model.Track{}, nil
+	}
+
+	// Cast to MusicData
+	musicData, ok := cachedData.(*redisrepo.MusicData)
+	if !ok {
+		return nil, fmt.Errorf("invalid cached data format")
+	}
+
+	// Apply limit if specified
+	recentlyPlayed := musicData.RecentlyPlayed
+	if limit != nil && len(recentlyPlayed) > int(*limit) {
+		recentlyPlayed = recentlyPlayed[:int(*limit)]
+	}
+
+	// Convert database models to GraphQL models
+	tracks := make([]*model.Track, len(recentlyPlayed))
+	for i, track := range recentlyPlayed {
+		tracks[i] = dbTrackToGraphQL(track)
+	}
+
+	return tracks, nil
 }
 
 // SearchAlbums is the resolver for the searchAlbums field.
@@ -255,6 +569,16 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 	limit := 20
 	if input.Limit != nil {
 		limit = int(*input.Limit)
+	}
+
+	// Check cache first
+	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
+	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "albums"); err == nil && cachedData != nil {
+		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
+			if results, ok := searchData.Results.([]*model.AlbumSearchResult); ok {
+				return results, nil
+			}
+		}
 	}
 
 	// Use the new Spotify client to search for albums
@@ -301,6 +625,12 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 		}
 	}
 
+	// Cache the results for faster future searches
+	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "albums", albumResults); err != nil {
+		// Log the error but don't fail the request
+		fmt.Printf("Warning: Failed to cache album search results: %v\n", err)
+	}
+
 	return albumResults, nil
 }
 
@@ -314,6 +644,16 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	limit := 20
 	if input.Limit != nil {
 		limit = int(*input.Limit)
+	}
+
+	// Check cache first
+	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
+	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "artists"); err == nil && cachedData != nil {
+		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
+			if results, ok := searchData.Results.([]*model.ArtistSearchResult); ok {
+				return results, nil
+			}
+		}
 	}
 
 	// Use the new Spotify client to search for artists
@@ -335,12 +675,24 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 		}
 	}
 
+	// Cache the results for faster future searches
+	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "artists", artistResults); err != nil {
+		// Log the error but don't fail the request
+		fmt.Printf("Warning: Failed to cache artist search results: %v\n", err)
+	}
+
 	return artistResults, nil
 }
 
 // ReviewAdded is the resolver for the reviewAdded field.
 func (r *subscriptionResolver) ReviewAdded(ctx context.Context, albumID string) (<-chan *model.Review, error) {
-	panic(fmt.Errorf("not implemented: ReviewAdded - reviewAdded"))
+	// Subscribe to review updates for the specified album using subscription manager
+	reviewChan, cleanup := r.subscriptionMgr.Subscribe(ctx, albumID)
+
+	// The cleanup function will be called automatically when the context is cancelled
+	_ = cleanup
+
+	return reviewChan, nil
 }
 
 // Mutation returns MutationResolver implementation.
