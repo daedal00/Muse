@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/daedal00/muse/backend/auth"
@@ -20,9 +21,13 @@ import (
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, name string, email string, password string) (*model.User, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] CreateUser started - Email: %s, Name: %s", email, name)
+	
 	// 1. Hash password
 	hash, err := auth.HashPassword(password)
 	if err != nil {
+		log.Printf("[MUTATION] CreateUser failed - Password hashing error: %v", err)
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
@@ -38,8 +43,12 @@ func (r *mutationResolver) CreateUser(ctx context.Context, name string, email st
 
 	// 3. Store in database
 	if err := r.repos.User.Create(ctx, dbUser); err != nil {
+		log.Printf("[MUTATION] CreateUser failed - Database error: %v", err)
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] CreateUser completed - UserID: %s, Duration: %v", dbUser.ID, duration)
 
 	// 4. Convert to GraphQL model and return
 	return dbUserToGraphQL(dbUser), nil
@@ -47,14 +56,19 @@ func (r *mutationResolver) CreateUser(ctx context.Context, name string, email st
 
 // Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, email string, password string) (string, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] Login started - Email: %s", email)
+	
 	// 1) Look up user in database
 	dbUser, err := r.repos.User.GetByEmail(ctx, email)
 	if err != nil {
+		log.Printf("[MUTATION] Login failed - User not found: %s", email)
 		return "", fmt.Errorf("invalid credentials")
 	}
 
 	// 2) Verify password against stored hash
 	if !auth.VerifyPassword(password, dbUser.PasswordHash) {
+		log.Printf("[MUTATION] Login failed - Invalid password for user: %s", email)
 		return "", fmt.Errorf("invalid credentials")
 	}
 
@@ -70,8 +84,12 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString([]byte(r.config.JWTSecret))
 	if err != nil {
+		log.Printf("[MUTATION] Login failed - Token signing error: %v", err)
 		return "", fmt.Errorf("could not sign token: %w", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] Login completed - UserID: %s, Duration: %v", dbUser.ID, duration)
 
 	// 4) Return JWT token
 	return signedToken, nil
@@ -79,27 +97,35 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 
 // CreateReview is the resolver for the createReview field.
 func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateReviewInput) (*model.Review, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] CreateReview started - AlbumID: %s, Rating: %d", input.AlbumID, input.Rating)
+	
 	// 1) Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
+		log.Printf("[MUTATION] CreateReview failed - Unauthenticated request")
 		return nil, fmt.Errorf("unauthenticated")
 	}
 	currentUserID := raw.(string)
+	log.Printf("[MUTATION] CreateReview - UserID: %s", currentUserID)
 
 	// Parse current user ID
 	userID, err := uuid.Parse(currentUserID)
 	if err != nil {
+		log.Printf("[MUTATION] CreateReview failed - Invalid user ID: %s", currentUserID)
 		return nil, fmt.Errorf("invalid user ID")
 	}
 
 	// Parse album ID
 	albumID, err := uuid.Parse(input.AlbumID)
 	if err != nil {
+		log.Printf("[MUTATION] CreateReview failed - Invalid album ID: %s", input.AlbumID)
 		return nil, fmt.Errorf("invalid album ID")
 	}
 
 	// Validate rating range
 	if input.Rating < 1 || input.Rating > 5 {
+		log.Printf("[MUTATION] CreateReview failed - Invalid rating: %d", input.Rating)
 		return nil, fmt.Errorf("rating must be between 1 and 5")
 	}
 
@@ -116,6 +142,7 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 
 	// Store in database using review repository
 	if err := r.repos.Review.Create(ctx, dbReview); err != nil {
+		log.Printf("[MUTATION] CreateReview failed - Database error: %v", err)
 		return nil, fmt.Errorf("failed to create review: %w", err)
 	}
 
@@ -130,7 +157,7 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 			// Add the first track as recently played (representing album interaction)
 			if err := r.repos.MusicCache.AddToRecentlyPlayed(cacheCtx, userID, tracks[0]); err != nil {
 				// Log the error but don't fail the mutation
-				fmt.Printf("Warning: Failed to add track to recently played: %v\n", err)
+				log.Printf("[CACHE] Warning: Failed to add track to recently played: %v", err)
 			}
 		}
 	}()
@@ -141,29 +168,39 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 	// Publish to subscription manager for real-time updates
 	if err := r.subscriptionMgr.PublishReview(ctx, graphqlReview); err != nil {
 		// Log error but don't fail the mutation
-		fmt.Printf("Warning: Failed to publish review to subscribers: %v\n", err)
+		log.Printf("[SUBSCRIPTION] Warning: Failed to publish review to subscribers: %v", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] CreateReview completed - ReviewID: %s, Duration: %v", dbReview.ID, duration)
 
 	return graphqlReview, nil
 }
 
 // CreatePlaylist is the resolver for the createPlaylist field.
 func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.CreatePlaylistInput) (*model.Playlist, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] CreatePlaylist started - Title: %s", input.Title)
+	
 	// 1) Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
+		log.Printf("[MUTATION] CreatePlaylist failed - Unauthenticated request")
 		return nil, fmt.Errorf("unauthenticated")
 	}
 	currentUserID := raw.(string)
+	log.Printf("[MUTATION] CreatePlaylist - UserID: %s", currentUserID)
 
 	// Parse current user ID
 	userID, err := uuid.Parse(currentUserID)
 	if err != nil {
+		log.Printf("[MUTATION] CreatePlaylist failed - Invalid user ID: %s", currentUserID)
 		return nil, fmt.Errorf("invalid user ID")
 	}
 
 	// Validate input
 	if input.Title == "" {
+		log.Printf("[MUTATION] CreatePlaylist failed - Empty title")
 		return nil, fmt.Errorf("playlist title cannot be empty")
 	}
 
@@ -180,8 +217,12 @@ func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.Creat
 
 	// Store in database using playlist repository
 	if err := r.repos.Playlist.Create(ctx, dbPlaylist); err != nil {
+		log.Printf("[MUTATION] CreatePlaylist failed - Database error: %v", err)
 		return nil, fmt.Errorf("failed to create playlist: %w", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] CreatePlaylist completed - PlaylistID: %s, Duration: %v", dbPlaylist.ID, duration)
 
 	// Convert to GraphQL model and return
 	return dbPlaylistToGraphQL(dbPlaylist), nil
@@ -245,56 +286,79 @@ func (r *mutationResolver) AddTrackToPlaylist(ctx context.Context, playlistID st
 
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
+	start := time.Now()
+	log.Printf("[QUERY] Me started")
+	
 	// Extract UserID from Context
 	raw := ctx.Value(UserIDKey)
 	if raw == nil {
+		log.Printf("[QUERY] Me failed - Unauthenticated request")
 		return nil, fmt.Errorf("unauthenticated")
 	}
 	currentUserID := raw.(string)
+	log.Printf("[QUERY] Me - UserID: %s", currentUserID)
 
 	// Parse user ID
 	userID, err := uuid.Parse(currentUserID)
 	if err != nil {
+		log.Printf("[QUERY] Me failed - Invalid user ID: %s", currentUserID)
 		return nil, fmt.Errorf("invalid user ID")
 	}
 
 	// Look up user in database
 	dbUser, err := r.repos.User.GetByID(ctx, userID)
 	if err != nil {
+		log.Printf("[QUERY] Me failed - Database error: %v", err)
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[QUERY] Me completed - UserID: %s, Duration: %v", userID, duration)
 
 	return dbUserToGraphQL(dbUser), nil
 }
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
+	start := time.Now()
+	log.Printf("[QUERY] User started - ID: %s", id)
+	
 	// Parse user ID
 	userID, err := uuid.Parse(id)
 	if err != nil {
+		log.Printf("[QUERY] User failed - Invalid user ID: %s", id)
 		return nil, fmt.Errorf("invalid user ID")
 	}
 
 	// Look up user in database
 	dbUser, err := r.repos.User.GetByID(ctx, userID)
 	if err != nil {
+		log.Printf("[QUERY] User failed - Database error: %v", err)
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[QUERY] User completed - UserID: %s, Duration: %v", userID, duration)
 
 	return dbUserToGraphQL(dbUser), nil
 }
 
 // Albums is the resolver for the albums field.
 func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string) (*model.AlbumConnection, error) {
-	// Set default limit
-	limit := 10
+	start := time.Now()
+	var limit int32 = 10
 	if first != nil {
-		limit = int(*first)
+		limit = *first
 	}
+	log.Printf("[QUERY] Albums started - Limit: %d, After: %v", limit, after)
+	
+	// Set default limit
+	limitInt := int(limit)
 
 	// Use pagination helper for improved cursor-based pagination
-	albums, hasNextPage, err := r.paginationHelper.GetAlbumsWithCursor(ctx, limit, after)
+	albums, hasNextPage, err := r.paginationHelper.GetAlbumsWithCursor(ctx, limitInt, after)
 	if err != nil {
+		log.Printf("[QUERY] Albums failed - Database error: %v", err)
 		return nil, fmt.Errorf("failed to fetch albums: %w", err)
 	}
 
@@ -316,6 +380,9 @@ func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string)
 		endCursor = &edges[len(edges)-1].Cursor
 	}
 
+	duration := time.Since(start)
+	log.Printf("[QUERY] Albums completed - Count: %d, HasNext: %t, Duration: %v", len(albums), hasNextPage, duration)
+
 	return &model.AlbumConnection{
 		TotalCount: safeLenToInt32(totalCount),
 		Edges:      edges,
@@ -328,15 +395,23 @@ func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string)
 
 // Album is the resolver for the album field.
 func (r *queryResolver) Album(ctx context.Context, id string) (*model.Album, error) {
+	start := time.Now()
+	log.Printf("[QUERY] Album started - ID: %s", id)
+	
 	albumID, err := uuid.Parse(id)
 	if err != nil {
+		log.Printf("[QUERY] Album failed - Invalid album ID: %s", id)
 		return nil, fmt.Errorf("invalid album ID")
 	}
 
 	dbAlbum, err := r.repos.Album.GetByID(ctx, albumID)
 	if err != nil {
+		log.Printf("[QUERY] Album failed - Database error: %v", err)
 		return nil, fmt.Errorf("album not found: %w", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[QUERY] Album completed - AlbumID: %s, Duration: %v", albumID, duration)
 
 	return dbAlbumToGraphQL(dbAlbum), nil
 }
@@ -561,32 +636,43 @@ func (r *queryResolver) RecentlyPlayed(ctx context.Context, limit *int32) ([]*mo
 
 // SearchAlbums is the resolver for the searchAlbums field.
 func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearchInput) ([]*model.AlbumSearchResult, error) {
-	if r.spotifyServices == nil {
-		return nil, fmt.Errorf("Spotify service not available")
-	}
-
-	// Set default values for limit if not provided
+	start := time.Now()
 	limit := 20
 	if input.Limit != nil {
 		limit = int(*input.Limit)
 	}
+	log.Printf("[QUERY] SearchAlbums started - Query: '%s', Limit: %d, Source: %s", input.Query, limit, input.Source)
+	
+	if r.spotifyServices == nil {
+		log.Printf("[QUERY] SearchAlbums failed - Spotify service not available")
+		return nil, fmt.Errorf("Spotify service not available")
+	}
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
+	log.Printf("[CACHE] Checking cache for albums - Key: %s", cacheKey)
+	
 	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "albums"); err == nil && cachedData != nil {
 		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
 			if results, ok := searchData.Results.([]*model.AlbumSearchResult); ok {
+				duration := time.Since(start)
+				log.Printf("[QUERY] SearchAlbums completed (CACHE HIT) - Query: '%s', Count: %d, Duration: %v", input.Query, len(results), duration)
 				return results, nil
 			}
 		}
 	}
+	log.Printf("[CACHE] Cache miss for albums - Key: %s", cacheKey)
 
 	// Use the new Spotify client to search for albums
+	log.Printf("[SPOTIFY] Calling Spotify API for albums - Query: '%s', Limit: %d", input.Query, limit)
 	results, err := r.spotifyServices.Search.SearchAlbums(ctx, input.Query,
 		spotifyapi.Limit(limit))
 	if err != nil {
+		log.Printf("[SPOTIFY] SearchAlbums failed - API error: %v", err)
 		return nil, fmt.Errorf("failed to search albums: %w", err)
 	}
+
+	log.Printf("[SPOTIFY] Spotify API response received - Albums found: %d", len(results.Albums.Albums))
 
 	// Convert Spotify results to GraphQL model
 	var albumResults []*model.AlbumSearchResult
@@ -626,42 +712,57 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 	}
 
 	// Cache the results for faster future searches
+	log.Printf("[CACHE] Caching album search results - Key: %s, Count: %d", cacheKey, len(albumResults))
 	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "albums", albumResults); err != nil {
 		// Log the error but don't fail the request
-		fmt.Printf("Warning: Failed to cache album search results: %v\n", err)
+		log.Printf("[CACHE] Warning: Failed to cache album search results: %v", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[QUERY] SearchAlbums completed (SPOTIFY API) - Query: '%s', Count: %d, Duration: %v", input.Query, len(albumResults), duration)
 
 	return albumResults, nil
 }
 
 // SearchArtists is the resolver for the searchArtists field.
 func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSearchInput) ([]*model.ArtistSearchResult, error) {
-	if r.spotifyServices == nil {
-		return nil, fmt.Errorf("spotify service not available")
-	}
-
-	// Set default values for limit if not provided
+	start := time.Now()
 	limit := 20
 	if input.Limit != nil {
 		limit = int(*input.Limit)
 	}
+	log.Printf("[QUERY] SearchArtists started - Query: '%s', Limit: %d, Source: %s", input.Query, limit, input.Source)
+	
+	if r.spotifyServices == nil {
+		log.Printf("[QUERY] SearchArtists failed - Spotify service not available")
+		return nil, fmt.Errorf("spotify service not available")
+	}
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
+	log.Printf("[CACHE] Checking cache for artists - Key: %s", cacheKey)
+	
 	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "artists"); err == nil && cachedData != nil {
 		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
 			if results, ok := searchData.Results.([]*model.ArtistSearchResult); ok {
+				duration := time.Since(start)
+				log.Printf("[QUERY] SearchArtists completed (CACHE HIT) - Query: '%s', Count: %d, Duration: %v", input.Query, len(results), duration)
 				return results, nil
 			}
 		}
 	}
+	log.Printf("[CACHE] Cache miss for artists - Key: %s", cacheKey)
 
 	// Use the new Spotify client to search for artists
+	log.Printf("[SPOTIFY] Calling Spotify API for artists - Query: '%s', Limit: %d", input.Query, limit)
 	results, err := r.spotifyServices.Search.SearchArtists(ctx, input.Query,
 		spotifyapi.Limit(limit))
 	if err != nil {
+		log.Printf("[SPOTIFY] SearchArtists failed - API error: %v", err)
 		return nil, fmt.Errorf("failed to search artists: %w", err)
 	}
+
+	log.Printf("[SPOTIFY] Spotify API response received - Artists found: %d", len(results.Artists.Artists))
 
 	// Convert Spotify results to GraphQL model
 	var artistResults []*model.ArtistSearchResult
@@ -676,10 +777,14 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	}
 
 	// Cache the results for faster future searches
+	log.Printf("[CACHE] Caching artist search results - Key: %s, Count: %d", cacheKey, len(artistResults))
 	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "artists", artistResults); err != nil {
 		// Log the error but don't fail the request
-		fmt.Printf("Warning: Failed to cache artist search results: %v\n", err)
+		log.Printf("[CACHE] Warning: Failed to cache artist search results: %v", err)
 	}
+
+	duration := time.Since(start)
+	log.Printf("[QUERY] SearchArtists completed (SPOTIFY API) - Query: '%s', Count: %d, Duration: %v", input.Query, len(artistResults), duration)
 
 	return artistResults, nil
 }
