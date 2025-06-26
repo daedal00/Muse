@@ -280,7 +280,7 @@ jobs:
         working-directory: ./backend
         run: |
           echo "=== RUNNING SECURITY SCAN ==="
-          $HOME/go/bin/gosec -conf ../.gosec.json -fmt=json -out=gosec-report.json -stdout -verbose=text ./...
+          $HOME/go/bin/gosec -conf .gosec.json -fmt=json -out=gosec-report.json -stdout -verbose=text ./...
 
       - name: Upload security scan results
         uses: actions/upload-artifact@v4
