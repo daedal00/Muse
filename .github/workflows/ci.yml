@@ -161,15 +161,16 @@ jobs:
         ports:
           - 5432:5432
 
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+      # Note: Using external Redis Cloud service instead of local Redis container
+      # redis:
+      #   image: redis:7-alpine
+      #   options: >-
+      #     --health-cmd "redis-cli ping"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
+      #   ports:
+      #     - 6379:6379
 
     steps:
       - name: Checkout code
@@ -199,7 +200,7 @@ jobs:
             sleep 2
           done
           echo "PostgreSQL is ready!"
-          echo "Redis should be ready (health checks passed)"
+          echo "Using external Redis Cloud service"
 
       - name: Run database migrations
         working-directory: ./backend
@@ -220,13 +221,13 @@ jobs:
           JWT_SECRET: test-jwt-secret-for-ci-only
           # Use the test database created by the postgres service
           DATABASE_URL: postgres://muse_user:muse_password@localhost:5432/muse_test?sslmode=disable
-          # Use IPv4 localhost for Redis connection
-          REDIS_ADDR: 127.0.0.1:6379
-          REDIS_PASSWORD: ""
-          REDIS_DB: 1
+          # Use Redis Cloud connection
+          REDIS_ADDR: ${{ secrets.REDIS_ADDR }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: 0
         run: |
           echo "=== RUNNING ALL TESTS (INCLUDING DATABASE-DEPENDENT) ==="
-          echo "Connecting to Redis at redis://$REDIS_ADDR/$REDIS_DB..."
+          echo "Connecting to Redis Cloud at $REDIS_ADDR..."
           echo "Connecting to PostgreSQL at $DATABASE_URL"
           go test -v -race -coverprofile=integration-coverage.out ./...
 
@@ -372,15 +373,16 @@ jobs:
         ports:
           - 5432:5432
 
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+      # Note: Using external Redis Cloud service instead of local Redis container
+      # redis:
+      #   image: redis:7-alpine
+      #   options: >-
+      #     --health-cmd "redis-cli ping"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
+      #   ports:
+      #     - 6379:6379
 
     steps:
       - name: Checkout code
@@ -410,7 +412,7 @@ jobs:
             sleep 2
           done
           echo "PostgreSQL is ready!"
-          echo "Redis should be ready (health checks passed)"
+          echo "Using external Redis Cloud service"
 
       - name: Run database migrations
         working-directory: ./backend
@@ -443,13 +445,13 @@ jobs:
           JWT_SECRET: test-jwt-secret-for-ci-only
           # Use the test database created by the postgres service
           DATABASE_URL: postgres://muse_user:muse_password@localhost:5432/muse_test?sslmode=disable
-          # Use IPv4 localhost for Redis connection
-          REDIS_ADDR: 127.0.0.1:6379
-          REDIS_PASSWORD: ""
-          REDIS_DB: 1
+          # Use Redis Cloud connection
+          REDIS_ADDR: ${{ secrets.REDIS_ADDR }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: 0
         run: |
           echo "=== RUNNING PERFORMANCE BENCHMARKS ==="
-          echo "Connecting to Redis at redis://$REDIS_ADDR/$REDIS_DB..."
+          echo "Connecting to Redis Cloud at $REDIS_ADDR..."
           echo "Connecting to PostgreSQL at $DATABASE_URL"
           go test -bench=. -benchmem -run=^$ ./... | tee benchmark-results.txt
 
