@@ -48,7 +48,7 @@ func Load() (*Config, error) {
 		if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
 			redisDB := getEnvAsInt("REDIS_DB", 0)
 			redisPassword := os.Getenv("REDIS_PASSWORD")
-			
+
 			// Construct Redis URL with optional password and database
 			if redisPassword != "" {
 				if redisDB != 0 {
