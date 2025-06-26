@@ -34,12 +34,14 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("✅ Connected to PostgreSQL database")
 
 	// Initialize Redis client
 	redisClient, err := database.NewRedisConnection(cfg.RedisURL)
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("✅ Connected to Redis at %s", cfg.RedisURL)
 
 	// Initialize repositories (using Redis for sessions, PostgreSQL for others)
 	repos := &repository.Repositories{

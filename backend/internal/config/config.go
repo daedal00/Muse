@@ -47,10 +47,21 @@ func Load() (*Config, error) {
 		// Check for REDIS_ADDR as alternative (used in some CI environments)
 		if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
 			redisDB := getEnvAsInt("REDIS_DB", 0)
-			if redisDB != 0 {
-				redisURL = fmt.Sprintf("redis://%s/%d", redisAddr, redisDB)
+			redisPassword := os.Getenv("REDIS_PASSWORD")
+			
+			// Construct Redis URL with optional password and database
+			if redisPassword != "" {
+				if redisDB != 0 {
+					redisURL = fmt.Sprintf("redis://:%s@%s/%d", redisPassword, redisAddr, redisDB)
+				} else {
+					redisURL = fmt.Sprintf("redis://:%s@%s", redisPassword, redisAddr)
+				}
 			} else {
-				redisURL = "redis://" + redisAddr
+				if redisDB != 0 {
+					redisURL = fmt.Sprintf("redis://%s/%d", redisAddr, redisDB)
+				} else {
+					redisURL = "redis://" + redisAddr
+				}
 			}
 		} else {
 			redisURL = "redis://localhost:6379"
