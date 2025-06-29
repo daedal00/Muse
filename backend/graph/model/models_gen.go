@@ -26,6 +26,19 @@ type AlbumConnection struct {
 	PageInfo   *PageInfo    `json:"pageInfo"`
 }
 
+type AlbumDetails struct {
+	ID            string            `json:"id"`
+	SpotifyID     *string           `json:"spotifyID,omitempty"`
+	Title         string            `json:"title"`
+	Artist        *Artist           `json:"artist"`
+	ReleaseDate   *string           `json:"releaseDate,omitempty"`
+	CoverImage    *string           `json:"coverImage,omitempty"`
+	Tracks        []*TrackDetails   `json:"tracks"`
+	AverageRating *float64          `json:"averageRating,omitempty"`
+	TotalReviews  int32             `json:"totalReviews"`
+	Reviews       *ReviewConnection `json:"reviews"`
+}
+
 type AlbumEdge struct {
 	Cursor string `json:"cursor"`
 	Node   *Album `json:"node"`
@@ -54,6 +67,17 @@ type Artist struct {
 	Albums    *AlbumConnection `json:"albums"`
 }
 
+type ArtistDetails struct {
+	ID        string   `json:"id"`
+	SpotifyID *string  `json:"spotifyID,omitempty"`
+	Name      string   `json:"name"`
+	Albums    []*Album `json:"albums"`
+	TopTracks []*Track `json:"topTracks"`
+	Image     *string  `json:"image,omitempty"`
+	Followers *int32   `json:"followers,omitempty"`
+	Genres    []string `json:"genres"`
+}
+
 type ArtistSearchInput struct {
 	Query  string          `json:"query"`
 	Limit  *int32          `json:"limit,omitempty"`
@@ -74,7 +98,8 @@ type CreatePlaylistInput struct {
 }
 
 type CreateReviewInput struct {
-	AlbumID    string  `json:"albumId"`
+	AlbumID    *string `json:"albumId,omitempty"`
+	TrackID    *string `json:"trackId,omitempty"`
 	Rating     int32   `json:"rating"`
 	ReviewText *string `json:"reviewText,omitempty"`
 }
@@ -131,6 +156,31 @@ type ReviewEdge struct {
 	Node   *Review `json:"node"`
 }
 
+type SpotifyAuthURL struct {
+	URL   string `json:"url"`
+	State string `json:"state"`
+}
+
+type SpotifyPlaylist struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Image       *string `json:"image,omitempty"`
+	TrackCount  int32   `json:"trackCount"`
+	IsPublic    bool    `json:"isPublic"`
+}
+
+type SpotifyPlaylistConnection struct {
+	Playlists   []*SpotifyPlaylist `json:"playlists"`
+	TotalCount  int32              `json:"totalCount"`
+	HasNextPage bool               `json:"hasNextPage"`
+}
+
+type SpotifyPlaylistsInput struct {
+	Limit  *int32 `json:"limit,omitempty"`
+	Offset *int32 `json:"offset,omitempty"`
+}
+
 type Subscription struct {
 }
 
@@ -149,9 +199,27 @@ type TrackConnection struct {
 	PageInfo   *PageInfo    `json:"pageInfo"`
 }
 
+type TrackDetails struct {
+	ID              string    `json:"id"`
+	SpotifyID       *string   `json:"spotifyID,omitempty"`
+	Title           string    `json:"title"`
+	Duration        *int32    `json:"duration,omitempty"`
+	TrackNumber     *int32    `json:"trackNumber,omitempty"`
+	FeaturedArtists []*Artist `json:"featuredArtists"`
+	AverageRating   *float64  `json:"averageRating,omitempty"`
+	TotalReviews    int32     `json:"totalReviews"`
+}
+
 type TrackEdge struct {
 	Cursor string `json:"cursor"`
 	Node   *Track `json:"node"`
+}
+
+type TrackSearchInput struct {
+	Query  string          `json:"query"`
+	Limit  *int32          `json:"limit,omitempty"`
+	Offset *int32          `json:"offset,omitempty"`
+	Source *ExternalSource `json:"source,omitempty"`
 }
 
 type TrackSearchResult struct {

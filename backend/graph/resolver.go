@@ -20,11 +20,13 @@ import (
 
 // Resolver is the root resolver struct
 type Resolver struct {
-	repos            *repository.Repositories
-	spotifyServices  *spotify.Services
-	subscriptionMgr  *SubscriptionManager
-	paginationHelper *PaginationHelper
-	config           *config.Config
+	repos                  *repository.Repositories
+	spotifyServices        *spotify.Services
+	SpotifyAuthService     *spotify.AuthService
+	SpotifyPlaylistService *spotify.PlaylistImportService
+	subscriptionMgr        *SubscriptionManager
+	paginationHelper       *PaginationHelper
+	config                 *config.Config
 }
 
 // NewResolver creates a new GraphQL resolver with all required dependencies
@@ -45,25 +47,33 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 
 	// Initialize repositories (using Redis for sessions, PostgreSQL for others)
 	repos := &repository.Repositories{
-		User:       postgres.NewUserRepository(postgresDB),
-		Artist:     postgres.NewArtistRepository(postgresDB),
-		Album:      postgres.NewAlbumRepository(postgresDB),
-		Track:      postgres.NewTrackRepository(postgresDB),
-		Review:     postgres.NewReviewRepository(postgresDB),
-		Playlist:   postgres.NewPlaylistRepository(postgresDB),
-		Session:    redisrepo.NewSessionRepository(redisClient),    // Using Redis for sessions
-		MusicCache: redisrepo.NewMusicCacheRepository(redisClient), // Using Redis for music caching
+		User:            postgres.NewUserRepository(postgresDB),
+		Review:          postgres.NewReviewRepository(postgresDB),
+		Playlist:        postgres.NewPlaylistRepository(postgresDB),
+		UserPreferences: postgres.NewUserPreferencesRepository(postgresDB), // New repository for user preferences
+		Session:         redisrepo.NewSessionRepository(redisClient),       // Using Redis for sessions
+		SpotifyCache:    redisrepo.NewSpotifyCacheRepository(redisClient),  // New optimized Spotify cache
+		MusicCache:      redisrepo.NewMusicCacheRepository(redisClient),    // Legacy music cache (backward compatibility)
 	}
 
 	// Initialize Spotify services (optional)
 	var spotifyServices *spotify.Services
+	var spotifyAuthService *spotify.AuthService
+	var spotifyPlaylistService *spotify.PlaylistImportService
+
 	if cfg.SpotifyClientID != "" && cfg.SpotifyClientSecret != "" {
 		// Create a basic Spotify client for client credentials flow (public data)
 		spotifyClient := spotify.NewClient(spotify.Config{
 			ClientID:     cfg.SpotifyClientID,
 			ClientSecret: cfg.SpotifyClientSecret,
-			RedirectURL:  "http://localhost:8080/callback", // Default redirect for client credentials
-			Scopes:       []string{},                       // No scopes needed for client credentials flow
+			RedirectURL:  cfg.SpotifyRedirectURL, // Use config redirect URL
+			Scopes: []string{
+				"user-read-private",
+				"user-read-email",
+				"playlist-read-private",
+				"playlist-read-collaborative",
+				"user-library-read",
+			},
 		})
 
 		// Get client credentials client for public API access
@@ -75,6 +85,10 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 		} else {
 			spotifyServices = spotify.NewServices(client)
 		}
+
+		// Initialize auth and playlist services
+		spotifyAuthService = spotify.NewAuthService(spotifyClient, postgresDB.Pool)
+		spotifyPlaylistService = spotify.NewPlaylistImportService(postgresDB.Pool, spotifyAuthService)
 	}
 
 	// Initialize subscription manager
@@ -84,11 +98,13 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 	paginationHelper := NewPaginationHelper(repos)
 
 	return &Resolver{
-		repos:            repos,
-		spotifyServices:  spotifyServices,
-		subscriptionMgr:  subscriptionMgr,
-		paginationHelper: paginationHelper,
-		config:           cfg,
+		repos:                  repos,
+		spotifyServices:        spotifyServices,
+		SpotifyAuthService:     spotifyAuthService,
+		SpotifyPlaylistService: spotifyPlaylistService,
+		subscriptionMgr:        subscriptionMgr,
+		paginationHelper:       paginationHelper,
+		config:                 cfg,
 	}, nil
 }
 

@@ -46,16 +46,26 @@ CREATE TABLE tracks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Reviews table
+-- Reviews table for both albums and tracks
 CREATE TABLE reviews (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    album_id UUID NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+    album_id UUID REFERENCES albums(id) ON DELETE CASCADE,
+    track_id UUID REFERENCES tracks(id) ON DELETE CASCADE,
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
     review_text TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(user_id, album_id)
+    CHECK ((album_id IS NOT NULL AND track_id IS NULL) OR (album_id IS NULL AND track_id IS NOT NULL))
+);
+
+-- Track featured artists junction table
+CREATE TABLE track_featured_artists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    track_id UUID NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+    artist_id UUID NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(track_id, artist_id)
 );
 
 -- Playlists table
@@ -94,6 +104,9 @@ CREATE INDEX idx_tracks_album_id ON tracks(album_id);
 CREATE INDEX idx_tracks_spotify_id ON tracks(spotify_id);
 CREATE INDEX idx_reviews_user_id ON reviews(user_id);
 CREATE INDEX idx_reviews_album_id ON reviews(album_id);
+CREATE INDEX idx_reviews_track_id ON reviews(track_id);
+CREATE INDEX idx_track_featured_artists_track_id ON track_featured_artists(track_id);
+CREATE INDEX idx_track_featured_artists_artist_id ON track_featured_artists(artist_id);
 CREATE INDEX idx_playlists_creator_id ON playlists(creator_id);
 CREATE INDEX idx_playlist_tracks_playlist_id ON playlist_tracks(playlist_id);
 CREATE INDEX idx_playlist_tracks_position ON playlist_tracks(playlist_id, position);

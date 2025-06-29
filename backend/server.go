@@ -67,15 +67,34 @@ func corsMiddleware(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		log.Printf("[CORS] Request from origin: %s", origin)
 
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		// Allow both HTTP and HTTPS 127.0.0.1 during development
+		allowedOrigins := []string{
+			"https://127.0.0.1:3000",
+			"http://127.0.0.1:3000",
+		}
+
+		var allowOrigin string = ""
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				allowOrigin = origin
+				break
+			}
+		}
+
+		if allowOrigin == "" {
+			// Default to HTTPS if no origin header (for direct API access)
+			allowOrigin = "https://127.0.0.1:3000"
+		}
+
+		// Set CORS headers - allow both HTTP and HTTPS 127.0.0.1
+		w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		// Handle preflight OPTIONS request
 		if r.Method == "OPTIONS" {
-			log.Printf("[CORS] Handling preflight OPTIONS request")
+			log.Printf("[CORS] Handling preflight OPTIONS request for origin: %s", allowOrigin)
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -190,6 +209,127 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))))
 
+	// Add Spotify OAuth callback endpoint
+	http.Handle("/auth/spotify/callback", corsMiddleware(loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[SPOTIFY] OAuth callback requested from %s", r.RemoteAddr)
+
+		// Get code and state from query parameters
+		code := r.URL.Query().Get("code")
+		state := r.URL.Query().Get("state")
+		errorParam := r.URL.Query().Get("error")
+		errorDescription := r.URL.Query().Get("error_description")
+
+		// Handle OAuth error cases as per Spotify documentation
+		if errorParam != "" {
+			log.Printf("[SPOTIFY] ❌ OAuth error: %s", errorParam)
+			if errorDescription != "" {
+				log.Printf("[SPOTIFY] Error description: %s", errorDescription)
+			}
+
+			// Map Spotify errors to user-friendly messages
+			var userError string
+			switch errorParam {
+			case "access_denied":
+				userError = "access_denied"
+				log.Printf("[SPOTIFY] User denied access to Spotify")
+			case "invalid_client":
+				userError = "invalid_client"
+				log.Printf("[SPOTIFY] Invalid client configuration")
+			case "invalid_request":
+				userError = "invalid_request"
+				log.Printf("[SPOTIFY] Invalid request parameters")
+			case "unauthorized_client":
+				userError = "unauthorized_client"
+				log.Printf("[SPOTIFY] Client not authorized for this grant type")
+			case "unsupported_response_type":
+				userError = "unsupported_response_type"
+				log.Printf("[SPOTIFY] Unsupported response type")
+			case "invalid_scope":
+				userError = "invalid_scope"
+				log.Printf("[SPOTIFY] Invalid or unsupported scope")
+			default:
+				userError = "unknown_error"
+				log.Printf("[SPOTIFY] Unknown OAuth error: %s", errorParam)
+			}
+
+			redirectURL := fmt.Sprintf("https://127.0.0.1:3000/spotify-callback?error=%s", userError)
+			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+			return
+		}
+
+		// Validate required parameters
+		if code == "" {
+			log.Printf("[SPOTIFY] ❌ Missing authorization code in callback")
+			redirectURL := "https://127.0.0.1:3000/spotify-callback?error=missing_code"
+			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+			return
+		}
+
+		if state == "" {
+			log.Printf("[SPOTIFY] ❌ Missing state parameter in callback")
+			redirectURL := "https://127.0.0.1:3000/spotify-callback?error=missing_state"
+			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+			return
+		}
+
+		// Validate state parameter format and expiry before processing
+		if resolver.SpotifyAuthService != nil {
+			// Pre-validate state to provide better error messages
+			if _, err := resolver.SpotifyAuthService.ValidateState(state); err != nil {
+				log.Printf("[SPOTIFY] ❌ State validation failed: %v", err)
+				var errorCode string
+				if strings.Contains(err.Error(), "expired") {
+					errorCode = "state_expired"
+				} else if strings.Contains(err.Error(), "format") {
+					errorCode = "state_invalid"
+				} else {
+					errorCode = "state_error"
+				}
+				redirectURL := fmt.Sprintf("https://127.0.0.1:3000/spotify-callback?error=%s", errorCode)
+				http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+				return
+			}
+
+			ctx := r.Context()
+			log.Printf("[SPOTIFY] Processing authorization code exchange...")
+
+			user, err := resolver.SpotifyAuthService.HandleCallback(ctx, code, state)
+			if err != nil {
+				log.Printf("[SPOTIFY] ❌ Callback handling failed: %v", err)
+
+				// Provide more specific error codes based on the error type
+				var errorCode string
+				switch {
+				case strings.Contains(err.Error(), "exchange code"):
+					errorCode = "token_exchange_failed"
+				case strings.Contains(err.Error(), "validation failed"):
+					errorCode = "token_validation_failed"
+				case strings.Contains(err.Error(), "get Spotify user"):
+					errorCode = "user_profile_failed"
+				case strings.Contains(err.Error(), "update user"):
+					errorCode = "user_update_failed"
+				default:
+					errorCode = "auth_failed"
+				}
+
+				redirectURL := fmt.Sprintf("https://127.0.0.1:3000/spotify-callback?error=%s", errorCode)
+				http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+				return
+			}
+
+			log.Printf("[SPOTIFY] ✅ User authenticated with Spotify successfully")
+			log.Printf("[SPOTIFY] User: %s (ID: %s)", user.Email, user.ID)
+
+			// Redirect to frontend callback page with success
+			redirectURL := "https://127.0.0.1:3000/spotify-callback?success=true"
+			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+		} else {
+			log.Printf("[SPOTIFY] ❌ Spotify auth service not available")
+			redirectURL := "https://127.0.0.1:3000/spotify-callback?error=service_unavailable"
+			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+		}
+	}))))
+
 	log.Println("[ROUTES] ✅ HTTP routes configured")
 
 	// Set up graceful shutdown
@@ -203,13 +343,13 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("🚀 Server ready at http://localhost:%s/", cfg.Port)
-		log.Printf("🕹  GraphQL playground at http://localhost:%s/", cfg.Port)
-		log.Printf("💚 Health check at http://localhost:%s/health", cfg.Port)
-		log.Printf("📊 Accepting requests from http://localhost:3000 (CORS enabled)")
+		log.Printf("🚀 Server ready at https://127.0.0.1:%s/", cfg.Port)
+		log.Printf("🕹  GraphQL playground at https://127.0.0.1:%s/", cfg.Port)
+		log.Printf("💚 Health check at https://127.0.0.1:%s/health", cfg.Port)
+		log.Printf("📊 Accepting requests from https://127.0.0.1:3000 (CORS enabled)")
 
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("[ERROR] Failed to start server: %v", err)
+		if err := server.ListenAndServeTLS("cert.pem", "key.pem"); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("[ERROR] Failed to start HTTPS server: %v", err)
 		}
 	}()
 

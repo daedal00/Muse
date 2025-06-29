@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -29,246 +30,72 @@ func NewPaginationHelper(repos *repository.Repositories) *PaginationHelper {
 
 // EncodeCursor creates a cursor from an ID and created timestamp
 func (p *PaginationHelper) EncodeCursor(id string, createdAt time.Time, position int) string {
-	cursorData := fmt.Sprintf("%s:%d:%d", id, createdAt.Unix(), position)
-	return base64.StdEncoding.EncodeToString([]byte(cursorData))
+	cursor := CursorInfo{
+		ID:        id,
+		CreatedAt: createdAt,
+		Position:  position,
+	}
+
+	data, _ := json.Marshal(cursor)
+	return base64.StdEncoding.EncodeToString(data)
 }
 
 // DecodeCursor decodes a cursor to extract ID, timestamp, and position
 func (p *PaginationHelper) DecodeCursor(cursor string) (*CursorInfo, error) {
 	data, err := base64.StdEncoding.DecodeString(cursor)
 	if err != nil {
-		return nil, fmt.Errorf("invalid cursor format")
+		return nil, fmt.Errorf("invalid cursor: %w", err)
 	}
 
-	parts := string(data)
-	// Try to parse as new format: id:timestamp:position
-	var id string
-	var timestamp int64
-	var position int
-
-	n, err := fmt.Sscanf(parts, "%36s:%d:%d", &id, &timestamp, &position)
-	if err != nil || n != 3 {
-		// Fallback to old format (just ID)
-		id = parts
-		timestamp = 0
-		position = 0
+	var cursorInfo CursorInfo
+	if err := json.Unmarshal(data, &cursorInfo); err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %w", err)
 	}
 
-	createdAt := time.Unix(timestamp, 0)
+	return &cursorInfo, nil
+}
 
-	return &CursorInfo{
+// CreateCursor creates a cursor from an ID and created timestamp
+func (p *PaginationHelper) CreateCursor(id string, createdAt time.Time, position int) (string, error) {
+	if id == "" {
+		return "", fmt.Errorf("id cannot be empty")
+	}
+
+	cursor := CursorInfo{
 		ID:        id,
 		CreatedAt: createdAt,
 		Position:  position,
+	}
+
+	data, err := json.Marshal(cursor)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode cursor: %w", err)
+	}
+
+	return base64.StdEncoding.EncodeToString(data), nil
+}
+
+// ParseCursor parses a cursor string and returns a CursorInfo
+func (p *PaginationHelper) ParseCursor(cursor string) (*CursorInfo, error) {
+	data, err := base64.StdEncoding.DecodeString(cursor)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+
+	var info CursorInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %w", err)
+	}
+
+	if info.ID == "" {
+		return nil, fmt.Errorf("cursor missing required ID field")
+	}
+
+	return &CursorInfo{
+		ID:        info.ID,
+		CreatedAt: info.CreatedAt,
+		Position:  info.Position,
 	}, nil
-}
-
-// GetAlbumsWithCursor fetches albums using proper cursor-based pagination
-func (p *PaginationHelper) GetAlbumsWithCursor(ctx context.Context, first int, after *string) ([]*models.Album, bool, error) {
-	var albums []*models.Album
-	var err error
-
-	if after != nil && *after != "" {
-		cursor, err := p.DecodeCursor(*after)
-		if err != nil {
-			return nil, false, err
-		}
-
-		// If we have a proper cursor with timestamp, use it for efficient pagination
-		if !cursor.CreatedAt.IsZero() {
-			albums, err = p.getAlbumsAfterCursor(ctx, cursor, first+1)
-			if err != nil {
-				return nil, false, err
-			}
-		} else {
-			// Fallback to position-based pagination
-			albums, err = p.getAlbumsAfterPosition(ctx, cursor.ID, first+1)
-			if err != nil {
-				return nil, false, err
-			}
-		}
-	} else {
-		// No cursor, get from beginning
-		albums, err = p.repos.Album.List(ctx, first+1, 0)
-	}
-
-	if err != nil {
-		return nil, false, err
-	}
-
-	// Check if there's a next page
-	hasNextPage := len(albums) > first
-	if hasNextPage {
-		albums = albums[:first]
-	}
-
-	return albums, hasNextPage, nil
-}
-
-// getAlbumsAfterCursor gets albums using timestamp-based cursor
-func (p *PaginationHelper) getAlbumsAfterCursor(ctx context.Context, cursor *CursorInfo, limit int) ([]*models.Album, error) {
-	// This would ideally be a custom repository method for efficient timestamp-based pagination
-	// For now, we'll use a combination of approaches
-
-	// Get all albums and filter (this is not optimal for large datasets)
-	// In production, you'd want a custom SQL query with WHERE created_at < ? ORDER BY created_at DESC
-	allAlbums, err := p.repos.Album.List(ctx, 1000, 0) // Get a reasonable batch
-	if err != nil {
-		return nil, err
-	}
-
-	var filteredAlbums []*models.Album
-	found := false
-
-	for _, album := range allAlbums {
-		if album.ID.String() == cursor.ID {
-			found = true
-			continue
-		}
-
-		if found {
-			filteredAlbums = append(filteredAlbums, album)
-			if len(filteredAlbums) >= limit {
-				break
-			}
-		}
-	}
-
-	return filteredAlbums, nil
-}
-
-// getAlbumsAfterPosition gets albums using position-based fallback
-func (p *PaginationHelper) getAlbumsAfterPosition(ctx context.Context, cursorID string, limit int) ([]*models.Album, error) {
-	// Find the position of the cursor ID
-	albums, err := p.repos.Album.List(ctx, 1000, 0) // Get a reasonable batch
-	if err != nil {
-		return nil, err
-	}
-
-	position := -1
-	for i, album := range albums {
-		if album.ID.String() == cursorID {
-			position = i
-			break
-		}
-	}
-
-	if position == -1 {
-		// Cursor not found, return empty result
-		return []*models.Album{}, nil
-	}
-
-	// Return albums after the cursor position
-	startIdx := position + 1
-	endIdx := startIdx + limit
-	if endIdx > len(albums) {
-		endIdx = len(albums)
-	}
-
-	if startIdx >= len(albums) {
-		return []*models.Album{}, nil
-	}
-
-	return albums[startIdx:endIdx], nil
-}
-
-// Similar methods for other entity types...
-
-// GetTracksWithCursor fetches tracks using proper cursor-based pagination
-func (p *PaginationHelper) GetTracksWithCursor(ctx context.Context, first int, after *string) ([]*models.Track, bool, error) {
-	var tracks []*models.Track
-	var err error
-
-	if after != nil && *after != "" {
-		cursor, err := p.DecodeCursor(*after)
-		if err != nil {
-			return nil, false, err
-		}
-
-		if !cursor.CreatedAt.IsZero() {
-			tracks, err = p.getTracksAfterCursor(ctx, cursor, first+1)
-			if err != nil {
-				return nil, false, err
-			}
-		} else {
-			tracks, err = p.getTracksAfterPosition(ctx, cursor.ID, first+1)
-			if err != nil {
-				return nil, false, err
-			}
-		}
-	} else {
-		tracks, err = p.repos.Track.List(ctx, first+1, 0)
-	}
-
-	if err != nil {
-		return nil, false, err
-	}
-
-	hasNextPage := len(tracks) > first
-	if hasNextPage {
-		tracks = tracks[:first]
-	}
-
-	return tracks, hasNextPage, nil
-}
-
-// getTracksAfterCursor gets tracks using timestamp-based cursor
-func (p *PaginationHelper) getTracksAfterCursor(ctx context.Context, cursor *CursorInfo, limit int) ([]*models.Track, error) {
-	allTracks, err := p.repos.Track.List(ctx, 1000, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	var filteredTracks []*models.Track
-	found := false
-
-	for _, track := range allTracks {
-		if track.ID.String() == cursor.ID {
-			found = true
-			continue
-		}
-
-		if found {
-			filteredTracks = append(filteredTracks, track)
-			if len(filteredTracks) >= limit {
-				break
-			}
-		}
-	}
-
-	return filteredTracks, nil
-}
-
-// getTracksAfterPosition gets tracks using position-based fallback
-func (p *PaginationHelper) getTracksAfterPosition(ctx context.Context, cursorID string, limit int) ([]*models.Track, error) {
-	tracks, err := p.repos.Track.List(ctx, 1000, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	position := -1
-	for i, track := range tracks {
-		if track.ID.String() == cursorID {
-			position = i
-			break
-		}
-	}
-
-	if position == -1 {
-		return []*models.Track{}, nil
-	}
-
-	startIdx := position + 1
-	endIdx := startIdx + limit
-	if endIdx > len(tracks) {
-		endIdx = len(tracks)
-	}
-
-	if startIdx >= len(tracks) {
-		return []*models.Track{}, nil
-	}
-
-	return tracks[startIdx:endIdx], nil
 }
 
 // GetReviewsWithCursor fetches reviews using proper cursor-based pagination

@@ -74,3 +74,21 @@ export const ADD_TRACK_TO_PLAYLIST = gql`
     }
   }
 `;
+
+export const IMPORT_SPOTIFY_PLAYLIST = gql`
+  mutation ImportSpotifyPlaylist($spotifyPlaylistId: String!) {
+    importSpotifyPlaylist(spotifyPlaylistId: $spotifyPlaylistId) {
+      id
+      title
+      description
+      coverImage
+      creator {
+        id
+        name
+      }
+      tracks {
+        totalCount
+      }
+    }
+  }
+`;

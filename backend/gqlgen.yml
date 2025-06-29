@@ -131,7 +131,7 @@ models:
       - github.com/99designs/gqlgen/graphql.Int
       - github.com/99designs/gqlgen/graphql.Int64
       - github.com/99designs/gqlgen/graphql.Int32
-  # gqlgen provides a default GraphQL UUID convenience wrapper for github.com/google/uuid 
+  # gqlgen provides a default GraphQL UUID convenience wrapper for github.com/google/uuid
   # but you can override this to provide your own GraphQL UUID implementation
   UUID:
     model:
@@ -153,3 +153,23 @@ models:
     model:
       - github.com/99designs/gqlgen/graphql.Int
       - github.com/99designs/gqlgen/graphql.Int64
+
+  # Force generation of Playlist with field resolvers
+  Playlist:
+    fields:
+      tracks:
+        resolver: true
+      creator:
+        resolver: true
+
+  # Add Track field resolver for album to handle album relationship loading
+  Track:
+    fields:
+      album:
+        resolver: true
+
+  # Add Artist field resolver for albums to handle relationship loading
+  Artist:
+    fields:
+      albums:
+        resolver: true

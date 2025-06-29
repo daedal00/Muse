@@ -27,25 +27,15 @@
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/albums": [
+    "/album/[id]": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/albums.js"
+      "static/chunks/pages/album/[id].js"
     ],
-    "/auth": [
+    "/artist/[id]": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/auth.js"
-    ],
-    "/playlists": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/playlists.js"
-    ],
-    "/reviews": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/reviews.js"
+      "static/chunks/pages/artist/[id].js"
     ],
     "/search": [
       "static/chunks/webpack.js",

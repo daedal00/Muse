@@ -15,7 +15,7 @@ func TestNewClient(t *testing.T) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 		Scopes:       []string{spotifyauth.ScopeUserReadPrivate},
 	}
 
@@ -31,7 +31,7 @@ func TestNewClientFromEnv(t *testing.T) {
 	// Set environment variables
 	os.Setenv("SPOTIFY_CLIENT_ID", "env-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "env-client-secret")
-	os.Setenv("SPOTIFY_REDIRECT_URL", "http://localhost:8080/auth/callback")
+	os.Setenv("SPOTIFY_REDIRECT_URL", "http://127.0.0.1:8080/auth/callback")
 
 	defer func() {
 		os.Unsetenv("SPOTIFY_CLIENT_ID")
@@ -50,7 +50,7 @@ func TestClient_GetAuthURL(t *testing.T) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 		Scopes:       []string{spotifyauth.ScopeUserReadPrivate},
 	}
 
@@ -69,7 +69,7 @@ func TestClient_GetAuthURLWithPKCE(t *testing.T) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 		Scopes:       []string{spotifyauth.ScopeUserReadPrivate},
 	}
 
@@ -99,7 +99,7 @@ func TestClient_GetClientCredentialsClient(t *testing.T) {
 	config := Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 	}
 
 	client := NewClient(config)
@@ -115,7 +115,7 @@ func TestClient_GetAuthorizedClient(t *testing.T) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 		Scopes:       []string{spotifyauth.ScopeUserReadPrivate},
 	}
 
@@ -139,7 +139,7 @@ func TestNewServices(t *testing.T) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 	}
 
 	client := NewClient(config)
@@ -168,7 +168,7 @@ func TestNewPaginationHelper(t *testing.T) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 	}
 
 	client := NewClient(config)
@@ -191,7 +191,7 @@ func BenchmarkClient_GetAuthURL(b *testing.B) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 		Scopes:       []string{spotifyauth.ScopeUserReadPrivate},
 	}
 
@@ -208,7 +208,7 @@ func BenchmarkClient_GetAuthURLWithPKCE(b *testing.B) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 		Scopes:       []string{spotifyauth.ScopeUserReadPrivate},
 	}
 
@@ -226,7 +226,7 @@ func BenchmarkNewServices(b *testing.B) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 	}
 
 	client := NewClient(config)
@@ -249,7 +249,7 @@ func BenchmarkClient_GetAuthorizedClient(b *testing.B) {
 	config := Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://127.0.0.1:8080/callback",
 		Scopes:       []string{spotifyauth.ScopeUserReadPrivate},
 	}
 

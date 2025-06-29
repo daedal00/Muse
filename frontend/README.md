@@ -33,7 +33,7 @@ npm install
 
 ```bash
 # Create .env.local file
-echo "NEXT_PUBLIC_GRAPHQL_URL=http://localhost:8080/query" > .env.local
+echo "NEXT_PUBLIC_GRAPHQL_URL=http://127.0.0.1:8080/query" > .env.local
 ```
 
 3. Start the development server:
@@ -42,7 +42,7 @@ echo "NEXT_PUBLIC_GRAPHQL_URL=http://localhost:8080/query" > .env.local
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:3000`
+The frontend will be available at `http://127.0.0.1:3000`
 
 ## Testing Your Backend
 
@@ -55,7 +55,7 @@ cd backend
 go run .
 ```
 
-Your backend should be accessible at `http://localhost:8080`
+Your backend should be accessible at `http://127.0.0.1:8080`
 
 ### 2. Test Authentication
 
@@ -77,7 +77,7 @@ Your backend should be accessible at `http://localhost:8080`
 
 ### 5. Test GraphQL Playground
 
-- Visit `http://localhost:8080` for the GraphQL playground
+- Visit `http://127.0.0.1:8080` for the GraphQL playground
 - Try running queries directly
 
 ## Available Pages
@@ -113,7 +113,7 @@ The frontend includes pre-built GraphQL operations for:
 
 ### Apollo Client Configuration
 
-- Configured to connect to `http://localhost:8080/query`
+- Configured to connect to `http://127.0.0.1:8080/query`
 - Includes authentication headers
 - Error handling for network issues
 
@@ -154,7 +154,7 @@ The frontend includes pre-built GraphQL operations for:
 Use this checklist to verify your backend functionality:
 
 - [ ] Backend starts without errors
-- [ ] GraphQL playground accessible at `http://localhost:8080`
+- [ ] GraphQL playground accessible at `http://127.0.0.1:8080`
 - [ ] Frontend connects to backend successfully
 - [ ] User registration works
 - [ ] User login works and updates UI
