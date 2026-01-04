@@ -327,7 +327,7 @@ func main() {
 		log.Printf("🚀 Server ready at http://localhost:%s/", cfg.Port)
 		log.Printf("🕹  GraphQL playground at http://localhost:%s/", cfg.Port)
 		log.Printf("💚 Health check at http://localhost:%s/health", cfg.Port)
-		log.Printf("📊 Accepting requests from http://localhost:3000 (CORS enabled)")
+		log.Printf("📊 Accepting requests from %s (CORS enabled)", cfg.FrontendURL)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[ERROR] Failed to start server: %v", err)

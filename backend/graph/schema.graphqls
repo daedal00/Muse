@@ -17,9 +17,24 @@ type User {
   email: String!
   bio: String
   avatar: String
+  profileSettings: ProfileSettings @goField(forceResolver: true)
   playlists(first: Int, after: String): PlaylistConnection! @goField(forceResolver: true)
   reviews(first: Int, after: String): ReviewConnection! @goField(forceResolver: true)
   trackReviews(first: Int, after: String): TrackReviewConnection! @goField(forceResolver: true)
+}
+
+enum ProfileLayout {
+  GRID
+  LIST
+  BENTO
+}
+
+type ProfileSettings {
+  layout: ProfileLayout!
+  pinnedAlbumIds: [ID!]!
+  pinnedTrackIds: [ID!]!
+  sectionsOrder: [String!]!
+  showSpotifyStats: Boolean!
 }
 
 type Album {
@@ -168,6 +183,17 @@ type PlaylistEdge {
   node: Playlist!
 }
 
+type UserConnection {
+  totalCount: Int!
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserEdge {
+  cursor: String!
+  node: User!
+}
+
 type PageInfo {
   endCursor: String
   hasNextPage: Boolean!
@@ -245,6 +271,7 @@ enum SpotifyTimeRange {
 type Query {
   me: User
   user(id: ID!): User
+  users(first: Int, after: String): UserConnection!
 
   albums(first: Int, after: String): AlbumConnection!
   album(id: ID!): Album
@@ -276,6 +303,10 @@ type Query {
   spotifyTopTracks(limit: Int = 10, timeRange: SpotifyTimeRange = MEDIUM_TERM): [TrackSearchResult!]!
   spotifySavedTracks(limit: Int = 20, offset: Int = 0): [TrackSearchResult!]!
   spotifyPlaylists(limit: Int = 20, offset: Int = 0): [SpotifyPlaylistResult!]!
+
+  # Spotify preview queries - view without storing to DB
+  spotifyAlbum(spotifyID: String!): AlbumSearchResult
+  spotifyTrack(spotifyID: String!): TrackSearchResult
 }
 
 # ---------------------------------------
@@ -300,9 +331,25 @@ input CreatePlaylistInput {
   coverImage: String
 }
 
+input UpdateProfileSettingsInput {
+  layout: ProfileLayout
+  pinnedAlbumIds: [ID!]
+  pinnedTrackIds: [ID!]
+  sectionsOrder: [String!]
+  showSpotifyStats: Boolean
+}
+
+input UpdateProfileInput {
+  name: String
+  bio: String
+  avatar: String
+}
+
 type Mutation {
   createUser(name: String!, email: String!, password: String!): User!
   login(email: String!, password: String!): String! # Returns simple token (UserID)
+  updateProfile(input: UpdateProfileInput!): User!
+  updateProfileSettings(input: UpdateProfileSettingsInput!): ProfileSettings!
   createReview(input: CreateReviewInput!): Review!
   createTrackReview(input: CreateTrackReviewInput!): TrackReview!
   createPlaylist(input: CreatePlaylistInput!): Playlist!

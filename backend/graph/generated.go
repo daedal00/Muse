@@ -120,6 +120,8 @@ type ComplexityRoot struct {
 		ImportTrack              func(childComplexity int, spotifyTrackID string) int
 		Login                    func(childComplexity int, email string, password string) int
 		SpotifyAuthURL           func(childComplexity int, redirectURI *string) int
+		UpdateProfile            func(childComplexity int, input model.UpdateProfileInput) int
+		UpdateProfileSettings    func(childComplexity int, input model.UpdateProfileSettingsInput) int
 	}
 
 	PageInfo struct {
@@ -148,6 +150,14 @@ type ComplexityRoot struct {
 		Node   func(childComplexity int) int
 	}
 
+	ProfileSettings struct {
+		Layout           func(childComplexity int) int
+		PinnedAlbumIds   func(childComplexity int) int
+		PinnedTrackIds   func(childComplexity int) int
+		SectionsOrder    func(childComplexity int) int
+		ShowSpotifyStats func(childComplexity int) int
+	}
+
 	Query struct {
 		Album              func(childComplexity int, id string) int
 		Albums             func(childComplexity int, first *int32, after *string) int
@@ -161,16 +171,19 @@ type ComplexityRoot struct {
 		SearchAlbums       func(childComplexity int, input model.AlbumSearchInput) int
 		SearchArtists      func(childComplexity int, input model.ArtistSearchInput) int
 		SearchTracks       func(childComplexity int, input model.TrackSearchInput) int
+		SpotifyAlbum       func(childComplexity int, spotifyID string) int
 		SpotifyPlaylists   func(childComplexity int, limit *int32, offset *int32) int
 		SpotifySavedTracks func(childComplexity int, limit *int32, offset *int32) int
 		SpotifyStatus      func(childComplexity int) int
 		SpotifyTopTracks   func(childComplexity int, limit *int32, timeRange *model.SpotifyTimeRange) int
+		SpotifyTrack       func(childComplexity int, spotifyID string) int
 		TopTracks          func(childComplexity int, limit *int32, sort *model.TopTrackSort) int
 		Track              func(childComplexity int, id string) int
 		TrackReview        func(childComplexity int, id string) int
 		TrackReviews       func(childComplexity int, first *int32, after *string) int
 		Tracks             func(childComplexity int, first *int32, after *string) int
 		User               func(childComplexity int, id string) int
+		Users              func(childComplexity int, first *int32, after *string) int
 	}
 
 	Review struct {
@@ -273,14 +286,26 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		Avatar       func(childComplexity int) int
-		Bio          func(childComplexity int) int
-		Email        func(childComplexity int) int
-		ID           func(childComplexity int) int
-		Name         func(childComplexity int) int
-		Playlists    func(childComplexity int, first *int32, after *string) int
-		Reviews      func(childComplexity int, first *int32, after *string) int
-		TrackReviews func(childComplexity int, first *int32, after *string) int
+		Avatar          func(childComplexity int) int
+		Bio             func(childComplexity int) int
+		Email           func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Name            func(childComplexity int) int
+		Playlists       func(childComplexity int, first *int32, after *string) int
+		ProfileSettings func(childComplexity int) int
+		Reviews         func(childComplexity int, first *int32, after *string) int
+		TrackReviews    func(childComplexity int, first *int32, after *string) int
+	}
+
+	UserConnection struct {
+		Edges      func(childComplexity int) int
+		PageInfo   func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
+	UserEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
 	}
 }
 
@@ -295,6 +320,8 @@ type ArtistResolver interface {
 type MutationResolver interface {
 	CreateUser(ctx context.Context, name string, email string, password string) (*model.User, error)
 	Login(ctx context.Context, email string, password string) (string, error)
+	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (*model.User, error)
+	UpdateProfileSettings(ctx context.Context, input model.UpdateProfileSettingsInput) (*model.ProfileSettings, error)
 	CreateReview(ctx context.Context, input model.CreateReviewInput) (*model.Review, error)
 	CreateTrackReview(ctx context.Context, input model.CreateTrackReviewInput) (*model.TrackReview, error)
 	CreatePlaylist(ctx context.Context, input model.CreatePlaylistInput) (*model.Playlist, error)
@@ -314,6 +341,7 @@ type PlaylistResolver interface {
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
 	User(ctx context.Context, id string) (*model.User, error)
+	Users(ctx context.Context, first *int32, after *string) (*model.UserConnection, error)
 	Albums(ctx context.Context, first *int32, after *string) (*model.AlbumConnection, error)
 	Album(ctx context.Context, id string) (*model.Album, error)
 	Tracks(ctx context.Context, first *int32, after *string) (*model.TrackConnection, error)
@@ -334,6 +362,8 @@ type QueryResolver interface {
 	SpotifyTopTracks(ctx context.Context, limit *int32, timeRange *model.SpotifyTimeRange) ([]*model.TrackSearchResult, error)
 	SpotifySavedTracks(ctx context.Context, limit *int32, offset *int32) ([]*model.TrackSearchResult, error)
 	SpotifyPlaylists(ctx context.Context, limit *int32, offset *int32) ([]*model.SpotifyPlaylistResult, error)
+	SpotifyAlbum(ctx context.Context, spotifyID string) (*model.AlbumSearchResult, error)
+	SpotifyTrack(ctx context.Context, spotifyID string) (*model.TrackSearchResult, error)
 }
 type SubscriptionResolver interface {
 	ReviewAdded(ctx context.Context, albumID string) (<-chan *model.Review, error)
@@ -343,6 +373,7 @@ type TrackResolver interface {
 	Reviews(ctx context.Context, obj *model.Track, first *int32, after *string) (*model.TrackReviewConnection, error)
 }
 type UserResolver interface {
+	ProfileSettings(ctx context.Context, obj *model.User) (*model.ProfileSettings, error)
 	Playlists(ctx context.Context, obj *model.User, first *int32, after *string) (*model.PlaylistConnection, error)
 	Reviews(ctx context.Context, obj *model.User, first *int32, after *string) (*model.ReviewConnection, error)
 	TrackReviews(ctx context.Context, obj *model.User, first *int32, after *string) (*model.TrackReviewConnection, error)
@@ -755,6 +786,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.SpotifyAuthURL(childComplexity, args["redirectURI"].(*string)), true
 
+	case "Mutation.updateProfile":
+		if e.complexity.Mutation.UpdateProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateProfile(childComplexity, args["input"].(model.UpdateProfileInput)), true
+
+	case "Mutation.updateProfileSettings":
+		if e.complexity.Mutation.UpdateProfileSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProfileSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateProfileSettings(childComplexity, args["input"].(model.UpdateProfileSettingsInput)), true
+
 	case "PageInfo.endCursor":
 		if e.complexity.PageInfo.EndCursor == nil {
 			break
@@ -857,6 +912,41 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.PlaylistEdge.Node(childComplexity), true
+
+	case "ProfileSettings.layout":
+		if e.complexity.ProfileSettings.Layout == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.Layout(childComplexity), true
+
+	case "ProfileSettings.pinnedAlbumIds":
+		if e.complexity.ProfileSettings.PinnedAlbumIds == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.PinnedAlbumIds(childComplexity), true
+
+	case "ProfileSettings.pinnedTrackIds":
+		if e.complexity.ProfileSettings.PinnedTrackIds == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.PinnedTrackIds(childComplexity), true
+
+	case "ProfileSettings.sectionsOrder":
+		if e.complexity.ProfileSettings.SectionsOrder == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.SectionsOrder(childComplexity), true
+
+	case "ProfileSettings.showSpotifyStats":
+		if e.complexity.ProfileSettings.ShowSpotifyStats == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.ShowSpotifyStats(childComplexity), true
 
 	case "Query.album":
 		if e.complexity.Query.Album == nil {
@@ -997,6 +1087,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.SearchTracks(childComplexity, args["input"].(model.TrackSearchInput)), true
 
+	case "Query.spotifyAlbum":
+		if e.complexity.Query.SpotifyAlbum == nil {
+			break
+		}
+
+		args, err := ec.field_Query_spotifyAlbum_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SpotifyAlbum(childComplexity, args["spotifyID"].(string)), true
+
 	case "Query.spotifyPlaylists":
 		if e.complexity.Query.SpotifyPlaylists == nil {
 			break
@@ -1039,6 +1141,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.SpotifyTopTracks(childComplexity, args["limit"].(*int32), args["timeRange"].(*model.SpotifyTimeRange)), true
+
+	case "Query.spotifyTrack":
+		if e.complexity.Query.SpotifyTrack == nil {
+			break
+		}
+
+		args, err := ec.field_Query_spotifyTrack_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SpotifyTrack(childComplexity, args["spotifyID"].(string)), true
 
 	case "Query.topTracks":
 		if e.complexity.Query.TopTracks == nil {
@@ -1111,6 +1225,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.User(childComplexity, args["id"].(string)), true
+
+	case "Query.users":
+		if e.complexity.Query.Users == nil {
+			break
+		}
+
+		args, err := ec.field_Query_users_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Users(childComplexity, args["first"].(*int32), args["after"].(*string)), true
 
 	case "Review.album":
 		if e.complexity.Review.Album == nil {
@@ -1568,6 +1694,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.User.Playlists(childComplexity, args["first"].(*int32), args["after"].(*string)), true
 
+	case "User.profileSettings":
+		if e.complexity.User.ProfileSettings == nil {
+			break
+		}
+
+		return e.complexity.User.ProfileSettings(childComplexity), true
+
 	case "User.reviews":
 		if e.complexity.User.Reviews == nil {
 			break
@@ -1592,6 +1725,41 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.User.TrackReviews(childComplexity, args["first"].(*int32), args["after"].(*string)), true
 
+	case "UserConnection.edges":
+		if e.complexity.UserConnection.Edges == nil {
+			break
+		}
+
+		return e.complexity.UserConnection.Edges(childComplexity), true
+
+	case "UserConnection.pageInfo":
+		if e.complexity.UserConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.UserConnection.PageInfo(childComplexity), true
+
+	case "UserConnection.totalCount":
+		if e.complexity.UserConnection.TotalCount == nil {
+			break
+		}
+
+		return e.complexity.UserConnection.TotalCount(childComplexity), true
+
+	case "UserEdge.cursor":
+		if e.complexity.UserEdge.Cursor == nil {
+			break
+		}
+
+		return e.complexity.UserEdge.Cursor(childComplexity), true
+
+	case "UserEdge.node":
+		if e.complexity.UserEdge.Node == nil {
+			break
+		}
+
+		return e.complexity.UserEdge.Node(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -1606,6 +1774,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateReviewInput,
 		ec.unmarshalInputCreateTrackReviewInput,
 		ec.unmarshalInputTrackSearchInput,
+		ec.unmarshalInputUpdateProfileInput,
+		ec.unmarshalInputUpdateProfileSettingsInput,
 	)
 	first := true
 
@@ -2269,6 +2439,52 @@ func (ec *executionContext) field_Mutation_spotifyAuthURL_argsRedirectURI(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_updateProfileSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_updateProfileSettings_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_updateProfileSettings_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.UpdateProfileSettingsInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNUpdateProfileSettingsInput2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUpdateProfileSettingsInput(ctx, tmp)
+	}
+
+	var zeroVal model.UpdateProfileSettingsInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_updateProfile_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_updateProfile_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.UpdateProfileInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNUpdateProfileInput2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUpdateProfileInput(ctx, tmp)
+	}
+
+	var zeroVal model.UpdateProfileInput
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Playlist_tracks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2658,6 +2874,29 @@ func (ec *executionContext) field_Query_searchTracks_argsInput(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Query_spotifyAlbum_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Query_spotifyAlbum_argsSpotifyID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["spotifyID"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Query_spotifyAlbum_argsSpotifyID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("spotifyID"))
+	if tmp, ok := rawArgs["spotifyID"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Query_spotifyPlaylists_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2778,6 +3017,29 @@ func (ec *executionContext) field_Query_spotifyTopTracks_argsTimeRange(
 	}
 
 	var zeroVal *model.SpotifyTimeRange
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_spotifyTrack_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Query_spotifyTrack_argsSpotifyID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["spotifyID"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Query_spotifyTrack_argsSpotifyID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("spotifyID"))
+	if tmp, ok := rawArgs["spotifyID"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
 	return zeroVal, nil
 }
 
@@ -2970,6 +3232,47 @@ func (ec *executionContext) field_Query_user_argsID(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Query_users_argsFirst(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg0
+	arg1, err := ec.field_Query_users_argsAfter(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Query_users_argsFirst(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (*int32, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("first"))
+	if tmp, ok := rawArgs["first"]; ok {
+		return ec.unmarshalOInt2ᚖint32(ctx, tmp)
+	}
+
+	var zeroVal *int32
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_users_argsAfter(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (*string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("after"))
+	if tmp, ok := rawArgs["after"]; ok {
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+	}
+
+	var zeroVal *string
 	return zeroVal, nil
 }
 
@@ -4715,6 +5018,8 @@ func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context
 				return ec.fieldContext_User_bio(ctx, field)
 			case "avatar":
 				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
 			case "playlists":
 				return ec.fieldContext_User_playlists(ctx, field)
 			case "reviews":
@@ -4788,6 +5093,148 @@ func (ec *executionContext) fieldContext_Mutation_login(ctx context.Context, fie
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_login_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_updateProfile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdateProfile(rctx, fc.Args["input"].(model.UpdateProfileInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "bio":
+				return ec.fieldContext_User_bio(ctx, field)
+			case "avatar":
+				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
+			case "playlists":
+				return ec.fieldContext_User_playlists(ctx, field)
+			case "reviews":
+				return ec.fieldContext_User_reviews(ctx, field)
+			case "trackReviews":
+				return ec.fieldContext_User_trackReviews(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProfileSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_updateProfileSettings(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdateProfileSettings(rctx, fc.Args["input"].(model.UpdateProfileSettingsInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.ProfileSettings)
+	fc.Result = res
+	return ec.marshalNProfileSettings2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileSettings(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateProfileSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "layout":
+				return ec.fieldContext_ProfileSettings_layout(ctx, field)
+			case "pinnedAlbumIds":
+				return ec.fieldContext_ProfileSettings_pinnedAlbumIds(ctx, field)
+			case "pinnedTrackIds":
+				return ec.fieldContext_ProfileSettings_pinnedTrackIds(ctx, field)
+			case "sectionsOrder":
+				return ec.fieldContext_ProfileSettings_sectionsOrder(ctx, field)
+			case "showSpotifyStats":
+				return ec.fieldContext_ProfileSettings_showSpotifyStats(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProfileSettings", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProfileSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5942,6 +6389,8 @@ func (ec *executionContext) fieldContext_Playlist_creator(_ context.Context, fie
 				return ec.fieldContext_User_bio(ctx, field)
 			case "avatar":
 				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
 			case "playlists":
 				return ec.fieldContext_User_playlists(ctx, field)
 			case "reviews":
@@ -6247,6 +6696,226 @@ func (ec *executionContext) fieldContext_PlaylistEdge_node(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _ProfileSettings_layout(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_layout(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Layout, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.ProfileLayout)
+	fc.Result = res
+	return ec.marshalNProfileLayout2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileLayout(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_layout(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ProfileLayout does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_pinnedAlbumIds(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_pinnedAlbumIds(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PinnedAlbumIds, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNID2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_pinnedAlbumIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_pinnedTrackIds(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_pinnedTrackIds(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PinnedTrackIds, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNID2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_pinnedTrackIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_sectionsOrder(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_sectionsOrder(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SectionsOrder, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_sectionsOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_showSpotifyStats(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_showSpotifyStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShowSpotifyStats, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_showSpotifyStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_me(ctx, field)
 	if err != nil {
@@ -6293,6 +6962,8 @@ func (ec *executionContext) fieldContext_Query_me(_ context.Context, field graph
 				return ec.fieldContext_User_bio(ctx, field)
 			case "avatar":
 				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
 			case "playlists":
 				return ec.fieldContext_User_playlists(ctx, field)
 			case "reviews":
@@ -6352,6 +7023,8 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 				return ec.fieldContext_User_bio(ctx, field)
 			case "avatar":
 				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
 			case "playlists":
 				return ec.fieldContext_User_playlists(ctx, field)
 			case "reviews":
@@ -6370,6 +7043,69 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_user_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_users(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Users(rctx, fc.Args["first"].(*int32), fc.Args["after"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.UserConnection)
+	fc.Result = res
+	return ec.marshalNUserConnection2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUserConnection(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_users(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "totalCount":
+				return ec.fieldContext_UserConnection_totalCount(ctx, field)
+			case "edges":
+				return ec.fieldContext_UserConnection_edges(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_UserConnection_pageInfo(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UserConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_users_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -7708,6 +8444,140 @@ func (ec *executionContext) fieldContext_Query_spotifyPlaylists(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_spotifyAlbum(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_spotifyAlbum(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().SpotifyAlbum(rctx, fc.Args["spotifyID"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.AlbumSearchResult)
+	fc.Result = res
+	return ec.marshalOAlbumSearchResult2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐAlbumSearchResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_spotifyAlbum(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AlbumSearchResult_id(ctx, field)
+			case "title":
+				return ec.fieldContext_AlbumSearchResult_title(ctx, field)
+			case "artist":
+				return ec.fieldContext_AlbumSearchResult_artist(ctx, field)
+			case "releaseDate":
+				return ec.fieldContext_AlbumSearchResult_releaseDate(ctx, field)
+			case "coverImage":
+				return ec.fieldContext_AlbumSearchResult_coverImage(ctx, field)
+			case "externalSource":
+				return ec.fieldContext_AlbumSearchResult_externalSource(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AlbumSearchResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_spotifyAlbum_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_spotifyTrack(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_spotifyTrack(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().SpotifyTrack(rctx, fc.Args["spotifyID"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.TrackSearchResult)
+	fc.Result = res
+	return ec.marshalOTrackSearchResult2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐTrackSearchResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_spotifyTrack(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TrackSearchResult_id(ctx, field)
+			case "title":
+				return ec.fieldContext_TrackSearchResult_title(ctx, field)
+			case "duration":
+				return ec.fieldContext_TrackSearchResult_duration(ctx, field)
+			case "trackNumber":
+				return ec.fieldContext_TrackSearchResult_trackNumber(ctx, field)
+			case "album":
+				return ec.fieldContext_TrackSearchResult_album(ctx, field)
+			case "artists":
+				return ec.fieldContext_TrackSearchResult_artists(ctx, field)
+			case "externalSource":
+				return ec.fieldContext_TrackSearchResult_externalSource(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TrackSearchResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_spotifyTrack_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query___type(ctx, field)
 	if err != nil {
@@ -7932,6 +8802,8 @@ func (ec *executionContext) fieldContext_Review_user(_ context.Context, field gr
 				return ec.fieldContext_User_bio(ctx, field)
 			case "avatar":
 				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
 			case "playlists":
 				return ec.fieldContext_User_playlists(ctx, field)
 			case "reviews":
@@ -9805,6 +10677,8 @@ func (ec *executionContext) fieldContext_TrackReview_user(_ context.Context, fie
 				return ec.fieldContext_User_bio(ctx, field)
 			case "avatar":
 				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
 			case "playlists":
 				return ec.fieldContext_User_playlists(ctx, field)
 			case "reviews":
@@ -10790,6 +11664,59 @@ func (ec *executionContext) fieldContext_User_avatar(_ context.Context, field gr
 	return fc, nil
 }
 
+func (ec *executionContext) _User_profileSettings(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_profileSettings(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.User().ProfileSettings(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ProfileSettings)
+	fc.Result = res
+	return ec.marshalOProfileSettings2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileSettings(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_User_profileSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "layout":
+				return ec.fieldContext_ProfileSettings_layout(ctx, field)
+			case "pinnedAlbumIds":
+				return ec.fieldContext_ProfileSettings_pinnedAlbumIds(ctx, field)
+			case "pinnedTrackIds":
+				return ec.fieldContext_ProfileSettings_pinnedTrackIds(ctx, field)
+			case "sectionsOrder":
+				return ec.fieldContext_ProfileSettings_sectionsOrder(ctx, field)
+			case "showSpotifyStats":
+				return ec.fieldContext_ProfileSettings_showSpotifyStats(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProfileSettings", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _User_playlists(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_playlists(ctx, field)
 	if err != nil {
@@ -10975,6 +11902,258 @@ func (ec *executionContext) fieldContext_User_trackReviews(ctx context.Context, 
 	if fc.Args, err = ec.field_User_trackReviews_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserConnection_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.UserConnection) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserConnection_totalCount(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalCount, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int32)
+	fc.Result = res
+	return ec.marshalNInt2int32(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserConnection_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.UserConnection) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserConnection_edges(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Edges, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.UserEdge)
+	fc.Result = res
+	return ec.marshalNUserEdge2ᚕᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUserEdgeᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "cursor":
+				return ec.fieldContext_UserEdge_cursor(ctx, field)
+			case "node":
+				return ec.fieldContext_UserEdge_node(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UserEdge", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.UserConnection) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserConnection_pageInfo(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PageInfo, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.PageInfo)
+	fc.Result = res
+	return ec.marshalNPageInfo2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐPageInfo(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "endCursor":
+				return ec.fieldContext_PageInfo_endCursor(ctx, field)
+			case "hasNextPage":
+				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *model.UserEdge) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserEdge_cursor(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Cursor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserEdge_node(ctx context.Context, field graphql.CollectedField, obj *model.UserEdge) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserEdge_node(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "bio":
+				return ec.fieldContext_User_bio(ctx, field)
+			case "avatar":
+				return ec.fieldContext_User_avatar(ctx, field)
+			case "profileSettings":
+				return ec.fieldContext_User_profileSettings(ctx, field)
+			case "playlists":
+				return ec.fieldContext_User_playlists(ctx, field)
+			case "reviews":
+				return ec.fieldContext_User_reviews(ctx, field)
+			case "trackReviews":
+				return ec.fieldContext_User_trackReviews(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -13209,6 +14388,102 @@ func (ec *executionContext) unmarshalInputTrackSearchInput(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
+	var it model.UpdateProfileInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "bio", "avatar"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "bio":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bio"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bio = data
+		case "avatar":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatar"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Avatar = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateProfileSettingsInput(ctx context.Context, obj any) (model.UpdateProfileSettingsInput, error) {
+	var it model.UpdateProfileSettingsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"layout", "pinnedAlbumIds", "pinnedTrackIds", "sectionsOrder", "showSpotifyStats"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "layout":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("layout"))
+			data, err := ec.unmarshalOProfileLayout2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileLayout(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Layout = data
+		case "pinnedAlbumIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pinnedAlbumIds"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PinnedAlbumIds = data
+		case "pinnedTrackIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pinnedTrackIds"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PinnedTrackIds = data
+		case "sectionsOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sectionsOrder"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SectionsOrder = data
+		case "showSpotifyStats":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("showSpotifyStats"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ShowSpotifyStats = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -13741,6 +15016,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProfileSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProfileSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createReview":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createReview(ctx, field)
@@ -14076,6 +15365,65 @@ func (ec *executionContext) _PlaylistEdge(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var profileSettingsImplementors = []string{"ProfileSettings"}
+
+func (ec *executionContext) _ProfileSettings(ctx context.Context, sel ast.SelectionSet, obj *model.ProfileSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, profileSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProfileSettings")
+		case "layout":
+			out.Values[i] = ec._ProfileSettings_layout(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pinnedAlbumIds":
+			out.Values[i] = ec._ProfileSettings_pinnedAlbumIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pinnedTrackIds":
+			out.Values[i] = ec._ProfileSettings_pinnedTrackIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sectionsOrder":
+			out.Values[i] = ec._ProfileSettings_sectionsOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "showSpotifyStats":
+			out.Values[i] = ec._ProfileSettings_showSpotifyStats(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -14124,6 +15472,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_user(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "users":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_users(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
 				return res
 			}
 
@@ -14549,6 +15919,44 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "spotifyAlbum":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_spotifyAlbum(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "spotifyTrack":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_spotifyTrack(ctx, field)
 				return res
 			}
 
@@ -15378,6 +16786,39 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._User_bio(ctx, field, obj)
 		case "avatar":
 			out.Values[i] = ec._User_avatar(ctx, field, obj)
+		case "profileSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_profileSettings(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "playlists":
 			field := field
 
@@ -15486,6 +16927,99 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var userConnectionImplementors = []string{"UserConnection"}
+
+func (ec *executionContext) _UserConnection(ctx context.Context, sel ast.SelectionSet, obj *model.UserConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, userConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UserConnection")
+		case "totalCount":
+			out.Values[i] = ec._UserConnection_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "edges":
+			out.Values[i] = ec._UserConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._UserConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var userEdgeImplementors = []string{"UserEdge"}
+
+func (ec *executionContext) _UserEdge(ctx context.Context, sel ast.SelectionSet, obj *model.UserEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, userEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UserEdge")
+		case "cursor":
+			out.Values[i] = ec._UserEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._UserEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -16147,6 +17681,36 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNID2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNID2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNImportSummary2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐImportSummary(ctx context.Context, sel ast.SelectionSet, v model.ImportSummary) graphql.Marshaler {
 	return ec._ImportSummary(ctx, sel, &v)
 }
@@ -16267,6 +17831,30 @@ func (ec *executionContext) marshalNPlaylistEdge2ᚖgithubᚗcomᚋdaedal00ᚋmu
 		return graphql.Null
 	}
 	return ec._PlaylistEdge(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNProfileLayout2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileLayout(ctx context.Context, v any) (model.ProfileLayout, error) {
+	var res model.ProfileLayout
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNProfileLayout2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileLayout(ctx context.Context, sel ast.SelectionSet, v model.ProfileLayout) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNProfileSettings2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileSettings(ctx context.Context, sel ast.SelectionSet, v model.ProfileSettings) graphql.Marshaler {
+	return ec._ProfileSettings(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProfileSettings2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileSettings(ctx context.Context, sel ast.SelectionSet, v *model.ProfileSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProfileSettings(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNReview2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v model.Review) graphql.Marshaler {
@@ -16433,6 +18021,36 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNTrack2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐTrack(ctx context.Context, sel ast.SelectionSet, v model.Track) graphql.Marshaler {
@@ -16800,6 +18418,16 @@ func (ec *executionContext) marshalNTrackSearchResult2ᚖgithubᚗcomᚋdaedal00
 	return ec._TrackSearchResult(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
+	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateProfileSettingsInput2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUpdateProfileSettingsInput(ctx context.Context, v any) (model.UpdateProfileSettingsInput, error) {
+	res, err := ec.unmarshalInputUpdateProfileSettingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNUser2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
@@ -16812,6 +18440,74 @@ func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbac
 		return graphql.Null
 	}
 	return ec._User(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNUserConnection2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUserConnection(ctx context.Context, sel ast.SelectionSet, v model.UserConnection) graphql.Marshaler {
+	return ec._UserConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNUserConnection2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUserConnection(ctx context.Context, sel ast.SelectionSet, v *model.UserConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._UserConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNUserEdge2ᚕᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUserEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.UserEdge) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNUserEdge2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUserEdge(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNUserEdge2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUserEdge(ctx context.Context, sel ast.SelectionSet, v *model.UserEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._UserEdge(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -17162,6 +18858,42 @@ func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel as
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
+func (ec *executionContext) unmarshalOID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNID2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOID2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOInt2ᚖint32(ctx context.Context, v any) (*int32, error) {
 	if v == nil {
 		return nil, nil
@@ -17187,6 +18919,29 @@ func (ec *executionContext) marshalOPlaylist2ᚖgithubᚗcomᚋdaedal00ᚋmuse�
 	return ec._Playlist(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOProfileLayout2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileLayout(ctx context.Context, v any) (*model.ProfileLayout, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.ProfileLayout)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOProfileLayout2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileLayout(ctx context.Context, sel ast.SelectionSet, v *model.ProfileLayout) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalOProfileSettings2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐProfileSettings(ctx context.Context, sel ast.SelectionSet, v *model.ProfileSettings) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ProfileSettings(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOReview2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v *model.Review) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -17208,6 +18963,42 @@ func (ec *executionContext) marshalOSpotifyTimeRange2ᚖgithubᚗcomᚋdaedal00�
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {
@@ -17256,6 +19047,13 @@ func (ec *executionContext) marshalOTrackReview2ᚖgithubᚗcomᚋdaedal00ᚋmus
 		return graphql.Null
 	}
 	return ec._TrackReview(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOTrackSearchResult2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐTrackSearchResult(ctx context.Context, sel ast.SelectionSet, v *model.TrackSearchResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TrackSearchResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {

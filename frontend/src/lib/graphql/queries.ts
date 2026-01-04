@@ -252,6 +252,48 @@ export const GET_PLAYLISTS = gql`
   }
 `;
 
+export const GET_PLAYLIST = gql`
+  query GetPlaylist($id: ID!, $tracksFirst: Int, $tracksAfter: String) {
+    playlist(id: $id) {
+      id
+      title
+      description
+      coverImage
+      createdAt
+      creator {
+        id
+        name
+      }
+      tracks(first: $tracksFirst, after: $tracksAfter) {
+        totalCount
+        edges {
+          cursor
+          node {
+            id
+            title
+            duration
+            trackNumber
+            averageRating
+            album {
+              id
+              title
+              coverImage
+              artist {
+                id
+                name
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
 export const GET_TOP_TRACKS = gql`
   query GetTopTracks($limit: Int, $sort: TopTrackSort) {
     topTracks(limit: $limit, sort: $sort) {
@@ -405,6 +447,53 @@ export const GET_SPOTIFY_PLAYLISTS = gql`
       ownerName
       trackCount
       externalSource
+    }
+  }
+`;
+
+// Preview queries - view Spotify data without storing to DB
+export const GET_SPOTIFY_ALBUM_PREVIEW = gql`
+  query GetSpotifyAlbumPreview($spotifyID: String!) {
+    spotifyAlbum(spotifyID: $spotifyID) {
+      id
+      title
+      releaseDate
+      coverImage
+      externalSource
+      artist {
+        id
+        name
+        externalSource
+      }
+    }
+  }
+`;
+
+export const GET_SPOTIFY_TRACK_PREVIEW = gql`
+  query GetSpotifyTrackPreview($spotifyID: String!) {
+    spotifyTrack(spotifyID: $spotifyID) {
+      id
+      title
+      duration
+      trackNumber
+      externalSource
+      album {
+        id
+        title
+        coverImage
+        releaseDate
+        externalSource
+        artist {
+          id
+          name
+          externalSource
+        }
+      }
+      artists {
+        id
+        name
+        externalSource
+      }
     }
   }
 `;

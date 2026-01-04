@@ -121,6 +121,14 @@ type PlaylistEdge struct {
 	Node   *Playlist `json:"node"`
 }
 
+type ProfileSettings struct {
+	Layout           ProfileLayout `json:"layout"`
+	PinnedAlbumIds   []string      `json:"pinnedAlbumIds"`
+	PinnedTrackIds   []string      `json:"pinnedTrackIds"`
+	SectionsOrder    []string      `json:"sectionsOrder"`
+	ShowSpotifyStats bool          `json:"showSpotifyStats"`
+}
+
 type Query struct {
 }
 
@@ -229,15 +237,41 @@ type TrackSearchResult struct {
 	ExternalSource ExternalSource        `json:"externalSource"`
 }
 
+type UpdateProfileInput struct {
+	Name   *string `json:"name,omitempty"`
+	Bio    *string `json:"bio,omitempty"`
+	Avatar *string `json:"avatar,omitempty"`
+}
+
+type UpdateProfileSettingsInput struct {
+	Layout           *ProfileLayout `json:"layout,omitempty"`
+	PinnedAlbumIds   []string       `json:"pinnedAlbumIds,omitempty"`
+	PinnedTrackIds   []string       `json:"pinnedTrackIds,omitempty"`
+	SectionsOrder    []string       `json:"sectionsOrder,omitempty"`
+	ShowSpotifyStats *bool          `json:"showSpotifyStats,omitempty"`
+}
+
 type User struct {
-	ID           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Email        string                 `json:"email"`
-	Bio          *string                `json:"bio,omitempty"`
-	Avatar       *string                `json:"avatar,omitempty"`
-	Playlists    *PlaylistConnection    `json:"playlists"`
-	Reviews      *ReviewConnection      `json:"reviews"`
-	TrackReviews *TrackReviewConnection `json:"trackReviews"`
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Email           string                 `json:"email"`
+	Bio             *string                `json:"bio,omitempty"`
+	Avatar          *string                `json:"avatar,omitempty"`
+	ProfileSettings *ProfileSettings       `json:"profileSettings,omitempty"`
+	Playlists       *PlaylistConnection    `json:"playlists"`
+	Reviews         *ReviewConnection      `json:"reviews"`
+	TrackReviews    *TrackReviewConnection `json:"trackReviews"`
+}
+
+type UserConnection struct {
+	TotalCount int32       `json:"totalCount"`
+	Edges      []*UserEdge `json:"edges"`
+	PageInfo   *PageInfo   `json:"pageInfo"`
+}
+
+type UserEdge struct {
+	Cursor string `json:"cursor"`
+	Node   *User  `json:"node"`
 }
 
 type ExternalSource string
@@ -290,6 +324,63 @@ func (e *ExternalSource) UnmarshalJSON(b []byte) error {
 }
 
 func (e ExternalSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProfileLayout string
+
+const (
+	ProfileLayoutGrid  ProfileLayout = "GRID"
+	ProfileLayoutList  ProfileLayout = "LIST"
+	ProfileLayoutBento ProfileLayout = "BENTO"
+)
+
+var AllProfileLayout = []ProfileLayout{
+	ProfileLayoutGrid,
+	ProfileLayoutList,
+	ProfileLayoutBento,
+}
+
+func (e ProfileLayout) IsValid() bool {
+	switch e {
+	case ProfileLayoutGrid, ProfileLayoutList, ProfileLayoutBento:
+		return true
+	}
+	return false
+}
+
+func (e ProfileLayout) String() string {
+	return string(e)
+}
+
+func (e *ProfileLayout) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProfileLayout(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProfileLayout", str)
+	}
+	return nil
+}
+
+func (e ProfileLayout) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProfileLayout) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProfileLayout) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

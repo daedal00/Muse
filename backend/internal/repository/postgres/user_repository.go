@@ -159,7 +159,7 @@ func (r *userRepository) Delete(ctx context.Context, id uuid.UUID) error {
 func (r *userRepository) List(ctx context.Context, limit, offset int) ([]*models.User, error) {
 	query := `
 		SELECT id, name, email, password_hash, bio, avatar, created_at, updated_at
-		FROM users 
+		FROM users
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
 	`
@@ -188,4 +188,61 @@ func (r *userRepository) List(ctx context.Context, limit, offset int) ([]*models
 	}
 
 	return users, nil
+}
+
+func (r *userRepository) GetAll(ctx context.Context, limit int, after *string) ([]*models.User, error) {
+	var query string
+	var rows pgx.Rows
+	var err error
+
+	if after != nil && *after != "" {
+		query = `
+			SELECT id, name, email, password_hash, bio, avatar, created_at, updated_at
+			FROM users
+			WHERE id > $1
+			ORDER BY id ASC
+			LIMIT $2
+		`
+		afterID, parseErr := uuid.Parse(*after)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid cursor: %w", parseErr)
+		}
+		rows, err = r.db.Pool.Query(ctx, query, afterID, limit)
+	} else {
+		query = `
+			SELECT id, name, email, password_hash, bio, avatar, created_at, updated_at
+			FROM users
+			ORDER BY id ASC
+			LIMIT $1
+		`
+		rows, err = r.db.Pool.Query(ctx, query, limit)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		user := &models.User{}
+		if err := rows.Scan(
+			&user.ID, &user.Name, &user.Email, &user.PasswordHash,
+			&user.Bio, &user.Avatar, &user.CreatedAt, &user.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+func (r *userRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count users: %w", err)
+	}
+	return count, nil
 }

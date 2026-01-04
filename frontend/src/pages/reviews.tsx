@@ -22,10 +22,10 @@ export default function ReviewsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold mb-4">Reviews</h1>
-        <p className="text-lg text-slate-600 dark:text-slate-300">
-          Browse album reviews and test the review system
+      <div>
+        <h1 className="text-3xl font-semibold mb-2">Reviews</h1>
+        <p className="text-slate-500 dark:text-slate-400">
+          See what people are saying about their favorite music
         </p>
       </div>
 
@@ -122,17 +122,6 @@ export default function ReviewsPage() {
         </div>
       )}
 
-      <div className="card-muted">
-        <h3 className="text-lg font-semibold mb-3">Testing Notes</h3>
-        <ul className="list-disc list-inside space-y-2 text-slate-600 dark:text-slate-300">
-          <li>This page tests the GraphQL reviews query with pagination</li>
-          <li>Reviews are created by authenticated users</li>
-          <li>Each review includes a 1-5 star rating and optional text</li>
-          <li>
-            To test: create a user, login, then use the createReview mutation
-          </li>
-        </ul>
-      </div>
     </div>
   );
 }

@@ -21,10 +21,10 @@ export default function AlbumsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold mb-4">Albums</h1>
-        <p className="text-lg text-slate-600 dark:text-slate-300">
-          Browse stored albums and test pagination
+      <div>
+        <h1 className="text-3xl font-semibold mb-2">Albums</h1>
+        <p className="text-slate-500 dark:text-slate-400">
+          Browse and discover music
         </p>
       </div>
 
@@ -112,15 +112,6 @@ export default function AlbumsPage() {
         </div>
       )}
 
-      <div className="card-muted">
-        <h3 className="text-lg font-semibold mb-3">Testing Notes</h3>
-        <ul className="list-disc list-inside space-y-2 text-slate-600 dark:text-slate-300">
-          <li>This page tests the GraphQL albums query with pagination</li>
-          <li>Albums are stored in your database after being searched/added</li>
-          <li>Pagination uses cursor-based pagination (GraphQL connections)</li>
-          <li>If no albums appear, the database might be empty initially</li>
-        </ul>
-      </div>
     </div>
   );
 }

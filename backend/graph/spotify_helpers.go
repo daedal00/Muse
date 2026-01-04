@@ -41,6 +41,31 @@ func spotifyAlbumToSearchResult(album spotifyapi.SimpleAlbum) *model.AlbumSearch
 	}
 }
 
+func spotifyFullAlbumToSearchResult(album *spotifyapi.FullAlbum) *model.AlbumSearchResult {
+	if album == nil {
+		return nil
+	}
+
+	var releaseDate *string
+	if album.ReleaseDate != "" {
+		releaseDate = &album.ReleaseDate
+	}
+
+	var coverImage *string
+	if len(album.Images) > 0 {
+		coverImage = &album.Images[0].URL
+	}
+
+	return &model.AlbumSearchResult{
+		ID:             string(album.ID),
+		Title:          album.Name,
+		Artist:         spotifyArtistsToSearchResults(album.Artists),
+		ReleaseDate:    releaseDate,
+		CoverImage:     coverImage,
+		ExternalSource: model.ExternalSourceSpotify,
+	}
+}
+
 func spotifyFullTrackToSearchResult(track spotifyapi.FullTrack) *model.TrackSearchResult {
 	var durationSeconds *int32
 	if track.Duration > 0 {

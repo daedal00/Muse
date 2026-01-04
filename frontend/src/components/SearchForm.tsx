@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import { useLazyQuery, useMutation } from "@apollo/client";
+import { useLazyQuery } from "@apollo/client";
 import { useRouter } from "next/router";
 import {
   SEARCH_ALBUMS,
   SEARCH_ARTISTS,
   SEARCH_TRACKS,
 } from "../lib/graphql/queries";
-import { IMPORT_ALBUM, IMPORT_TRACK } from "../lib/graphql/mutations";
 
 interface SearchFormProps {
   onResults?: (results: any, type: "albums" | "artists" | "tracks") => void;
@@ -18,8 +17,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
   const [searchType, setSearchType] = useState<
     "albums" | "artists" | "tracks"
   >("albums");
-  const [importingID, setImportingID] = useState<string | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
+  const [navigatingID, setNavigatingID] = useState<string | null>(null);
 
   const [
     searchAlbums,
@@ -34,13 +32,9 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
     { loading: tracksLoading, data: tracksData, error: tracksError },
   ] = useLazyQuery(SEARCH_TRACKS);
 
-  const [importAlbum] = useMutation(IMPORT_ALBUM);
-  const [importTrack] = useMutation(IMPORT_TRACK);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-    setImportError(null);
 
     const searchInput = {
       query: query.trim(),
@@ -58,31 +52,13 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
     }
   };
 
-  const handleImport = async (type: "albums" | "tracks", spotifyID: string) => {
-    setImportError(null);
-    setImportingID(spotifyID);
-    try {
-      if (type === "albums") {
-        const { data } = await importAlbum({
-          variables: { spotifyAlbumID: spotifyID },
-        });
-        if (data?.importAlbum?.id) {
-          await router.push(`/albums/${data.importAlbum.id}`);
-        }
-      } else {
-        const { data } = await importTrack({
-          variables: { spotifyTrackID: spotifyID },
-        });
-        if (data?.importTrack?.id) {
-          await router.push(`/tracks/${data.importTrack.id}`);
-        }
-      }
-    } catch (err) {
-      setImportError(
-        err instanceof Error ? err.message : "Failed to import item"
-      );
-    } finally {
-      setImportingID(null);
+  // Navigate to preview page (no import until user takes action)
+  const handleView = (type: "albums" | "tracks", spotifyID: string) => {
+    setNavigatingID(spotifyID);
+    if (type === "albums") {
+      router.push(`/albums/spotify/${spotifyID}`);
+    } else {
+      router.push(`/tracks/spotify/${spotifyID}`);
     }
   };
 
@@ -110,17 +86,15 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
 
   return (
     <div className="card">
-      <h2 className="text-xl font-semibold mb-4">Search Music</h2>
-
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex space-x-4">
+        <div className="flex gap-3">
           <div className="flex-1">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search for albums, artists, or tracks..."
-              className="input"
+              placeholder="Search albums, artists, or tracks..."
+              className="input text-lg"
             />
           </div>
 
@@ -143,7 +117,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
             disabled={loading || !query.trim()}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Searching..." : "Search"}
+            {loading ? "..." : "Search"}
           </button>
         </div>
       </form>
@@ -154,110 +128,83 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
         </div>
       )}
 
-      {importError && (
-        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
-          Import Error: {importError}
-        </div>
-      )}
-
       {results && results.length > 0 && (
         <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-3">
-            Search Results ({results.length})
-          </h3>
-          <div className="grid gap-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+            {results.length} results
+          </p>
+          <div className="space-y-2">
             {results.map((item: any) => (
-              <div key={item.id} className="card-muted">
+              <div
+                key={item.id}
+                className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer group"
+                onClick={() =>
+                  searchType === "albums"
+                    ? handleView("albums", item.id)
+                    : searchType === "tracks"
+                    ? handleView("tracks", item.id)
+                    : null
+                }
+              >
                 {searchType === "albums" ? (
-                  <div className="flex items-center space-x-4">
-                    {item.coverImage && (
+                  <>
+                    {item.coverImage ? (
                       <img
                         src={item.coverImage}
                         alt={item.title}
-                        className="w-16 h-16 object-cover rounded"
+                        className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
                       />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
                     )}
-                    <div>
-                      <h4 className="font-semibold">{item.title}</h4>
-                      <p className="text-slate-600 dark:text-slate-300">
-                        by {item.artist.map((a: any) => a.name).join(", ")}
-                      </p>
-                      {item.releaseDate && (
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Released:{" "}
-                          {new Date(item.releaseDate).toLocaleDateString()}
-                        </p>
-                      )}
-                      <p className="text-xs text-emerald-600">
-                        Source: {item.externalSource}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-base truncate">{item.title}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                        {item.artist.map((a: any) => a.name).join(", ")}
+                        {item.releaseDate && ` · ${new Date(item.releaseDate).getFullYear()}`}
                       </p>
                     </div>
-                    <div className="ml-auto">
-                      <button
-                        type="button"
-                        onClick={() => handleImport("albums", item.id)}
-                        disabled={importingID === item.id}
-                        className="btn-secondary disabled:opacity-50"
-                      >
-                        {importingID === item.id
-                          ? "Importing..."
-                          : "Import & View"}
-                      </button>
-                    </div>
-                  </div>
+                    <span className="text-sm text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {navigatingID === item.id ? "Opening..." : "View →"}
+                    </span>
+                  </>
                 ) : searchType === "tracks" ? (
-                  <div className="flex items-start space-x-4">
-                    {item.album?.coverImage && (
+                  <>
+                    {item.album?.coverImage ? (
                       <img
                         src={item.album.coverImage}
                         alt={item.album.title}
-                        className="w-16 h-16 object-cover rounded"
+                        className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
                       />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
                     )}
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{item.title}</h4>
-                      <p className="text-slate-600 dark:text-slate-300">
-                        by {item.artists.map((a: any) => a.name).join(", ")}
-                      </p>
-                      {item.album?.title && (
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Album: {item.album.title}
-                        </p>
-                      )}
-                      {formatDuration(item.duration) && (
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Duration: {formatDuration(item.duration)}
-                        </p>
-                      )}
-                      {item.trackNumber && (
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Track {item.trackNumber}
-                        </p>
-                      )}
-                      <p className="text-xs text-emerald-600">
-                        Source: {item.externalSource}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-base truncate">{item.title}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                        {item.artists.map((a: any) => a.name).join(", ")}
+                        {item.album?.title && ` · ${item.album.title}`}
                       </p>
                     </div>
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => handleImport("tracks", item.id)}
-                        disabled={importingID === item.id}
-                        className="btn-secondary disabled:opacity-50"
-                      >
-                        {importingID === item.id
-                          ? "Importing..."
-                          : "Import & View"}
-                      </button>
-                    </div>
-                  </div>
+                    {formatDuration(item.duration) && (
+                      <span className="text-sm text-slate-400 dark:text-slate-500">
+                        {formatDuration(item.duration)}
+                      </span>
+                    )}
+                    <span className="text-sm text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {navigatingID === item.id ? "Opening..." : "View →"}
+                    </span>
+                  </>
                 ) : (
-                  <div>
-                    <h4 className="font-semibold">{item.name}</h4>
-                    <p className="text-xs text-emerald-600">
-                      Source: {item.externalSource}
-                    </p>
-                  </div>
+                  <>
+                    <div className="w-12 h-12 rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0 flex items-center justify-center">
+                      <span className="text-lg">🎤</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-base truncate">{item.name}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Artist</p>
+                    </div>
+                  </>
                 )}
               </div>
             ))}

@@ -324,6 +324,87 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 	return signedToken, nil
 }
 
+// UpdateProfile is the resolver for the updateProfile field.
+func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (*model.User, error) {
+	raw := ctx.Value(UserIDKey)
+	if raw == nil {
+		return nil, fmt.Errorf("unauthenticated")
+	}
+	userIDStr, ok := raw.(string)
+	if !ok || userIDStr == "" {
+		return nil, fmt.Errorf("invalid user context")
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user id")
+	}
+
+	user, err := r.repos.User.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Update fields if provided
+	if input.Name != nil {
+		user.Name = *input.Name
+	}
+	if input.Bio != nil {
+		user.Bio = input.Bio
+	}
+	if input.Avatar != nil {
+		user.Avatar = input.Avatar
+	}
+
+	if err := r.repos.User.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return dbUserToGraphQL(user), nil
+}
+
+// UpdateProfileSettings is the resolver for the updateProfileSettings field.
+// For now, returns defaults since we haven't added the profile_settings table yet.
+func (r *mutationResolver) UpdateProfileSettings(ctx context.Context, input model.UpdateProfileSettingsInput) (*model.ProfileSettings, error) {
+	raw := ctx.Value(UserIDKey)
+	if raw == nil {
+		return nil, fmt.Errorf("unauthenticated")
+	}
+
+	// Return the updated settings (in a real impl, this would be stored in DB)
+	layout := model.ProfileLayoutGrid
+	if input.Layout != nil {
+		layout = *input.Layout
+	}
+
+	pinnedAlbums := []string{}
+	if input.PinnedAlbumIds != nil {
+		pinnedAlbums = input.PinnedAlbumIds
+	}
+
+	pinnedTracks := []string{}
+	if input.PinnedTrackIds != nil {
+		pinnedTracks = input.PinnedTrackIds
+	}
+
+	sectionsOrder := []string{"favorites", "recentReviews", "topTracks", "playlists"}
+	if input.SectionsOrder != nil {
+		sectionsOrder = input.SectionsOrder
+	}
+
+	showSpotify := true
+	if input.ShowSpotifyStats != nil {
+		showSpotify = *input.ShowSpotifyStats
+	}
+
+	return &model.ProfileSettings{
+		Layout:          layout,
+		PinnedAlbumIds:  pinnedAlbums,
+		PinnedTrackIds:  pinnedTracks,
+		SectionsOrder:   sectionsOrder,
+		ShowSpotifyStats: showSpotify,
+	}, nil
+}
+
 // CreateReview is the resolver for the createReview field.
 func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateReviewInput) (*model.Review, error) {
 	start := time.Now()
@@ -1016,6 +1097,46 @@ func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error
 	log.Printf("[QUERY] User completed - UserID: %s, Duration: %v", userID, duration)
 
 	return dbUserToGraphQL(dbUser), nil
+}
+
+// Users is the resolver for the users field.
+func (r *queryResolver) Users(ctx context.Context, first *int32, after *string) (*model.UserConnection, error) {
+	limit := 20
+	if first != nil {
+		limit = int(*first)
+	}
+
+	users, err := r.repos.User.GetAll(ctx, limit+1, after)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch users: %w", err)
+	}
+
+	hasNextPage := len(users) > limit
+	if hasNextPage {
+		users = users[:limit]
+	}
+
+	edges := make([]*model.UserEdge, 0, len(users))
+	var endCursor *string
+	for _, user := range users {
+		cursor := user.ID.String()
+		edges = append(edges, &model.UserEdge{
+			Cursor: cursor,
+			Node:   dbUserToGraphQL(user),
+		})
+		endCursor = &cursor
+	}
+
+	totalCount, _ := r.repos.User.Count(ctx)
+
+	return &model.UserConnection{
+		TotalCount: int32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			HasNextPage: hasNextPage,
+			EndCursor:   endCursor,
+		},
+	}, nil
 }
 
 // Albums is the resolver for the albums field.
@@ -2264,6 +2385,80 @@ func (r *queryResolver) SpotifyPlaylists(ctx context.Context, limit *int32, offs
 	return results, nil
 }
 
+// SpotifyAlbum is the resolver for the spotifyAlbum field.
+// Returns album data from Spotify without storing to DB - cached in Redis for 24h.
+func (r *queryResolver) SpotifyAlbum(ctx context.Context, spotifyID string) (*model.AlbumSearchResult, error) {
+	if r.spotifyServices == nil {
+		return nil, fmt.Errorf("Spotify service not available")
+	}
+
+	// Check cache first
+	cacheKey := fmt.Sprintf("album:%s", spotifyID)
+	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "album"); err == nil && cachedData != nil {
+		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
+			var result *model.AlbumSearchResult
+			if len(searchData.Results) > 0 {
+				if err := json.Unmarshal(searchData.Results, &result); err == nil {
+					log.Printf("[CACHE] SpotifyAlbum cache hit for %s", spotifyID)
+					return result, nil
+				}
+			}
+		}
+	}
+
+	// Fetch from Spotify
+	album, err := r.spotifyServices.Album.GetAlbum(ctx, spotifyapi.ID(spotifyID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch album from Spotify: %w", err)
+	}
+
+	result := spotifyFullAlbumToSearchResult(album)
+
+	// Cache for future requests
+	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "album", result); err != nil {
+		log.Printf("[CACHE] Warning: Failed to cache album: %v", err)
+	}
+
+	return result, nil
+}
+
+// SpotifyTrack is the resolver for the spotifyTrack field.
+// Returns track data from Spotify without storing to DB - cached in Redis for 24h.
+func (r *queryResolver) SpotifyTrack(ctx context.Context, spotifyID string) (*model.TrackSearchResult, error) {
+	if r.spotifyServices == nil {
+		return nil, fmt.Errorf("Spotify service not available")
+	}
+
+	// Check cache first
+	cacheKey := fmt.Sprintf("track:%s", spotifyID)
+	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "track"); err == nil && cachedData != nil {
+		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
+			var result *model.TrackSearchResult
+			if len(searchData.Results) > 0 {
+				if err := json.Unmarshal(searchData.Results, &result); err == nil {
+					log.Printf("[CACHE] SpotifyTrack cache hit for %s", spotifyID)
+					return result, nil
+				}
+			}
+		}
+	}
+
+	// Fetch from Spotify
+	track, err := r.spotifyServices.Track.GetTrack(ctx, spotifyapi.ID(spotifyID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch track from Spotify: %w", err)
+	}
+
+	result := spotifyFullTrackToSearchResult(*track)
+
+	// Cache for future requests
+	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "track", result); err != nil {
+		log.Printf("[CACHE] Warning: Failed to cache track: %v", err)
+	}
+
+	return result, nil
+}
+
 // ReviewAdded is the resolver for the reviewAdded field.
 func (r *subscriptionResolver) ReviewAdded(ctx context.Context, albumID string) (<-chan *model.Review, error) {
 	// Subscribe to review updates for the specified album using subscription manager
@@ -2376,6 +2571,19 @@ func (r *trackResolver) Reviews(ctx context.Context, obj *model.Track, first *in
 			EndCursor:   endCursor,
 			HasNextPage: hasNextPage,
 		},
+	}, nil
+}
+
+// ProfileSettings is the resolver for the profileSettings field.
+func (r *userResolver) ProfileSettings(ctx context.Context, obj *model.User) (*model.ProfileSettings, error) {
+	// Return default profile settings
+	// In a full implementation, this would fetch from a profile_settings table
+	return &model.ProfileSettings{
+		Layout:          model.ProfileLayoutGrid,
+		PinnedAlbumIds:  []string{},
+		PinnedTrackIds:  []string{},
+		SectionsOrder:   []string{"favorites", "recentReviews", "topTracks", "playlists"},
+		ShowSpotifyStats: true,
 	}, nil
 }
 

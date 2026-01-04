@@ -17,6 +17,8 @@ type UserRepository interface {
 	Update(ctx context.Context, user *models.User) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*models.User, error)
+	GetAll(ctx context.Context, limit int, after *string) ([]*models.User, error)
+	Count(ctx context.Context) (int, error)
 }
 
 type ArtistRepository interface {

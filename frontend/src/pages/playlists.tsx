@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { useQuery } from "@apollo/client";
 import { GET_PLAYLISTS } from "../lib/graphql/queries";
 
@@ -20,10 +21,10 @@ export default function PlaylistsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold mb-4">Playlists</h1>
-        <p className="text-lg text-slate-600 dark:text-slate-300">
-          Browse user playlists and test the playlist system
+      <div>
+        <h1 className="text-3xl font-semibold mb-2">Playlists</h1>
+        <p className="text-slate-500 dark:text-slate-400">
+          Curated collections from the community
         </p>
       </div>
 
@@ -57,29 +58,36 @@ export default function PlaylistsPage() {
           {data.playlists.edges.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {data.playlists.edges.map(({ node: playlist }) => (
-                <div key={playlist.id} className="card">
-                  {playlist.coverImage && (
+                <Link
+                  key={playlist.id}
+                  href={`/playlists/${playlist.id}`}
+                  className="card hover:ring-2 hover:ring-emerald-500/50 transition-all group"
+                >
+                  {playlist.coverImage ? (
                     <img
                       src={playlist.coverImage}
                       alt={playlist.title}
-                      className="w-full h-48 object-cover rounded mb-4"
+                      className="w-full h-48 object-cover rounded-xl mb-4 group-hover:opacity-90 transition-opacity"
                     />
+                  ) : (
+                    <div className="w-full h-48 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 mb-4 flex items-center justify-center">
+                      <span className="text-5xl">🎵</span>
+                    </div>
                   )}
-                  <h3 className="text-lg font-semibold mb-2">
+                  <h3 className="text-lg font-semibold mb-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                     {playlist.title}
                   </h3>
                   {playlist.description && (
-                    <p className="text-slate-600 dark:text-slate-300 mb-3">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-3 line-clamp-2">
                       {playlist.description}
                     </p>
                   )}
-                  <div className="text-sm text-slate-500 dark:text-slate-400 border-t border-slate-200/70 dark:border-slate-800/60 pt-3">
+                  <div className="text-sm text-slate-500 dark:text-slate-400">
                     <p>
-                      Created by <strong>{playlist.creator.name}</strong>
+                      by <span className="font-medium">{playlist.creator.name}</span>
                     </p>
-                    <p>{new Date(playlist.createdAt).toLocaleDateString()}</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -107,17 +115,6 @@ export default function PlaylistsPage() {
         </div>
       )}
 
-      <div className="card-muted">
-        <h3 className="text-lg font-semibold mb-3">Testing Notes</h3>
-        <ul className="list-disc list-inside space-y-2 text-slate-600 dark:text-slate-300">
-          <li>This page tests the GraphQL playlists query with pagination</li>
-          <li>Playlists are created by authenticated users</li>
-          <li>Each playlist can have a title, description, and cover image</li>
-          <li>
-            To test: create a user, login, then use the createPlaylist mutation
-          </li>
-        </ul>
-      </div>
     </div>
   );
 }
