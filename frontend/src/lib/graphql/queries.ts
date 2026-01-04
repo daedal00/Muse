@@ -451,6 +451,88 @@ export const GET_SPOTIFY_PLAYLISTS = gql`
   }
 `;
 
+// User queries for social features
+export const GET_USERS = gql`
+  query GetUsers($first: Int, $after: String) {
+    users(first: $first, after: $after) {
+      totalCount
+      edges {
+        cursor
+        node {
+          id
+          name
+          bio
+          avatar
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+export const GET_USER = gql`
+  query GetUser($id: ID!) {
+    user(id: $id) {
+      id
+      name
+      bio
+      avatar
+      profileSettings {
+        layout
+        pinnedAlbumIds
+        pinnedTrackIds
+        sectionsOrder
+        showSpotifyStats
+      }
+      reviews(first: 10) {
+        totalCount
+        edges {
+          node {
+            id
+            rating
+            reviewText
+            createdAt
+            album {
+              id
+              title
+              coverImage
+              artist {
+                name
+              }
+            }
+          }
+        }
+      }
+      trackReviews(first: 10) {
+        totalCount
+        edges {
+          node {
+            id
+            rating
+            reviewText
+            createdAt
+            track {
+              id
+              title
+              album {
+                id
+                title
+                coverImage
+                artist {
+                  name
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 // Preview queries - view Spotify data without storing to DB
 export const GET_SPOTIFY_ALBUM_PREVIEW = gql`
   query GetSpotifyAlbumPreview($spotifyID: String!) {

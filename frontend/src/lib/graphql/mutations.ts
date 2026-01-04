@@ -156,3 +156,26 @@ export const IMPORT_SPOTIFY_PLAYLIST = gql`
     }
   }
 `;
+
+export const UPDATE_PROFILE = gql`
+  mutation UpdateProfile($input: UpdateProfileInput!) {
+    updateProfile(input: $input) {
+      id
+      name
+      bio
+      avatar
+    }
+  }
+`;
+
+export const UPDATE_PROFILE_SETTINGS = gql`
+  mutation UpdateProfileSettings($input: UpdateProfileSettingsInput!) {
+    updateProfileSettings(input: $input) {
+      layout
+      pinnedAlbumIds
+      pinnedTrackIds
+      sectionsOrder
+      showSpotifyStats
+    }
+  }
+`;

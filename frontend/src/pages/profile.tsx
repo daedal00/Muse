@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@apollo/client";
 import {
@@ -18,6 +18,7 @@ import {
   SPOTIFY_AUTH_URL,
 } from "../lib/graphql/mutations";
 import StarRating from "../components/StarRating";
+import ProfileEditor from "../components/ProfileEditor";
 import {
   defaultHomePreferences,
   loadHomePreferences,
@@ -91,6 +92,7 @@ export default function ProfilePage() {
   const [spotifyError, setSpotifyError] = React.useState<string | null>(null);
   const [importMessage, setImportMessage] = React.useState<string | null>(null);
   const [importingPlaylist, setImportingPlaylist] = React.useState<string | null>(null);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
 
   React.useEffect(() => {
     setHomePrefs(loadHomePreferences());
@@ -268,20 +270,42 @@ export default function ProfilePage() {
     <div className="space-y-10">
       <section className="card">
         <div className="flex flex-wrap items-start justify-between gap-6">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-              Profile
-            </p>
-            <h1 className="text-3xl font-semibold mt-2">{profileData?.me?.name}</h1>
-            <p className="muted mt-2">{profileData?.me?.email}</p>
-            {profileData?.me?.bio && (
-              <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                {profileData.me.bio}
-              </p>
+          <div className="flex items-start gap-5">
+            {profileData?.me?.avatar ? (
+              <img
+                src={profileData.me.avatar}
+                alt={profileData.me.name}
+                className="h-20 w-20 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-2xl font-bold text-white">
+                {profileData?.me?.name?.charAt(0)?.toUpperCase() || "?"}
+              </div>
             )}
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                Profile
+              </p>
+              <h1 className="text-3xl font-semibold mt-2">{profileData?.me?.name}</h1>
+              <p className="muted mt-2">{profileData?.me?.email}</p>
+              {profileData?.me?.bio && (
+                <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                  {profileData.me.bio}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            <p>Track ratings: {profileData?.me?.trackReviews?.totalCount ?? 0}</p>
+          <div className="flex flex-col items-end gap-3">
+            <button
+              type="button"
+              onClick={() => setShowProfileEditor(true)}
+              className="btn-secondary"
+            >
+              Edit Profile
+            </button>
+            <div className="text-sm text-slate-500 dark:text-slate-400">
+              <p>Track ratings: {profileData?.me?.trackReviews?.totalCount ?? 0}</p>
+            </div>
           </div>
         </div>
       </section>
@@ -612,6 +636,25 @@ export default function ProfilePage() {
           </div>
         )}
       </section>
+
+      {/* Profile Editor Modal */}
+      {showProfileEditor && profileData?.me && (
+        <ProfileEditor
+          user={{
+            id: profileData.me.id,
+            name: profileData.me.name,
+            bio: profileData.me.bio,
+            avatar: profileData.me.avatar,
+          }}
+          settings={null}
+          onClose={() => setShowProfileEditor(false)}
+          onSave={() => {
+            setShowProfileEditor(false);
+            // Refetch profile data after saving
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 }

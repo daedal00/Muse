@@ -90,7 +90,13 @@ export default function ReviewsPage() {
 
                   <div className="text-sm text-slate-500 dark:text-slate-400 border-t border-slate-200/70 dark:border-slate-800/60 pt-3">
                     <p>
-                      Reviewed by <strong>{review.user.name}</strong>
+                      Reviewed by{" "}
+                      <Link
+                        href={`/users/${review.user.id}`}
+                        className="font-semibold text-emerald-600 hover:text-emerald-500 transition-colors"
+                      >
+                        {review.user.name}
+                      </Link>
                     </p>
                     <p>{new Date(review.createdAt).toLocaleDateString()}</p>
                   </div>
