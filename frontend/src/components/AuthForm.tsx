@@ -79,8 +79,8 @@ const AuthForm: React.FC = () => {
   const error = createError || loginError;
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-center">
+    <div className="card max-w-md mx-auto">
+      <h2 className="text-2xl font-semibold mb-6 text-center">
         {isLogin ? "Login" : "Sign Up"}
       </h2>
 
@@ -89,7 +89,7 @@ const AuthForm: React.FC = () => {
           <div>
             <label
               htmlFor="name"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1"
             >
               Name
             </label>
@@ -100,7 +100,7 @@ const AuthForm: React.FC = () => {
               value={formData.name}
               onChange={handleInputChange}
               required={!isLogin}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input"
             />
           </div>
         )}
@@ -108,7 +108,7 @@ const AuthForm: React.FC = () => {
         <div>
           <label
             htmlFor="email"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1"
           >
             Email
           </label>
@@ -119,14 +119,14 @@ const AuthForm: React.FC = () => {
             value={formData.email}
             onChange={handleInputChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input"
           />
         </div>
 
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1"
           >
             Password
           </label>
@@ -137,21 +137,21 @@ const AuthForm: React.FC = () => {
             value={formData.password}
             onChange={handleInputChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Processing..." : isLogin ? "Login" : "Sign Up"}
         </button>
       </form>
 
       {error && (
-        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           Error: {error.message}
         </div>
       )}
@@ -160,7 +160,7 @@ const AuthForm: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsLogin(!isLogin)}
-          className="text-blue-600 hover:text-blue-800 text-sm"
+          className="text-emerald-600 hover:text-emerald-500 text-sm"
         >
           {isLogin
             ? "Don't have an account? Sign up"

@@ -95,3 +95,64 @@ export const IMPORT_TRACK = gql`
     }
   }
 `;
+
+export const CREATE_TRACK_REVIEW = gql`
+  mutation CreateTrackReview($input: CreateTrackReviewInput!) {
+    createTrackReview(input: $input) {
+      id
+      rating
+      reviewText
+      createdAt
+      user {
+        id
+        name
+      }
+      track {
+        id
+        title
+      }
+    }
+  }
+`;
+
+export const SPOTIFY_AUTH_URL = gql`
+  mutation SpotifyAuthURL($redirectURI: String) {
+    spotifyAuthURL(redirectURI: $redirectURI)
+  }
+`;
+
+export const DISCONNECT_SPOTIFY = gql`
+  mutation DisconnectSpotify {
+    disconnectSpotify
+  }
+`;
+
+export const IMPORT_SPOTIFY_TOP_TRACKS = gql`
+  mutation ImportSpotifyTopTracks($limit: Int, $timeRange: SpotifyTimeRange) {
+    importSpotifyTopTracks(limit: $limit, timeRange: $timeRange) {
+      importedTracks
+      importedAlbums
+      importedPlaylists
+    }
+  }
+`;
+
+export const IMPORT_SPOTIFY_SAVED_TRACKS = gql`
+  mutation ImportSpotifySavedTracks($limit: Int, $offset: Int) {
+    importSpotifySavedTracks(limit: $limit, offset: $offset) {
+      importedTracks
+      importedAlbums
+      importedPlaylists
+    }
+  }
+`;
+
+export const IMPORT_SPOTIFY_PLAYLIST = gql`
+  mutation ImportSpotifyPlaylist($spotifyPlaylistID: ID!) {
+    importSpotifyPlaylist(spotifyPlaylistID: $spotifyPlaylistID) {
+      importedTracks
+      importedAlbums
+      importedPlaylists
+    }
+  }
+`;

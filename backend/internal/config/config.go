@@ -16,6 +16,8 @@ type Config struct {
 	// Spotify
 	SpotifyClientID     string
 	SpotifyClientSecret string
+	SpotifyRedirectURL  string
+	FrontendURL         string
 
 	// Database
 	DatabaseURL string
@@ -74,6 +76,8 @@ func Load() (*Config, error) {
 
 		SpotifyClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
 		SpotifyClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+		SpotifyRedirectURL:  getEnv("SPOTIFY_REDIRECT_URL", "http://localhost:8080/spotify/callback"),
+		FrontendURL:         getEnv("FRONTEND_URL", "http://localhost:3000"),
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		DBHost:      getEnv("DB_HOST", "localhost"),

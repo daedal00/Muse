@@ -7,10 +7,11 @@ A **production-ready** GraphQL-based music discovery and review platform backend
 The backend is **nearly complete** and **fully functional**:
 
 - ✅ **All Core Features Implemented**: Users, Artists, Albums, Tracks, Reviews, Playlists
+- ✅ **Track Reviews**: Separate ratings and optional notes for tracks
 - ✅ **Database Layer**: Complete with comprehensive testing (all tests passing)
 - ✅ **GraphQL API**: Schema and resolvers implemented
 - ✅ **Authentication**: JWT-based with Redis session management
-- ✅ **Spotify Integration**: Search and music data retrieval
+- ✅ **Spotify Integration**: Search, user OAuth, and import flows
 - ✅ **Production Ready**: Docker, CI/CD, comprehensive error handling
 
 **Remaining work** focuses on production hardening and performance tuning.
@@ -89,6 +90,10 @@ REDIS_URL=redis://localhost:6379
 # Spotify API (optional)
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SPOTIFY_REDIRECT_URL=http://localhost:8080/spotify/callback
+
+# Frontend URL (for CORS + OAuth redirects)
+FRONTEND_URL=http://localhost:3000
 
 # JWT Security
 JWT_SECRET=your-super-secret-jwt-key-here
@@ -129,8 +134,10 @@ go run server.go
 - **albums**: Albums with metadata and cover art
 - **tracks**: Individual songs with duration and track numbers
 - **reviews**: User ratings (1-5) and text reviews for albums
+- **track_reviews**: User ratings (1-5) and optional text for tracks
 - **playlists**: User-created collections of tracks
 - **playlist_tracks**: Many-to-many relationship between playlists and tracks
+- **spotify_tokens**: OAuth tokens for Spotify import flows
 
 ### Key Features
 

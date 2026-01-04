@@ -54,14 +54,16 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 
 	// Initialize repositories (using Redis for sessions, PostgreSQL for others)
 	repos := &repository.Repositories{
-		User:       postgres.NewUserRepository(postgresDB),
-		Artist:     postgres.NewArtistRepository(postgresDB),
-		Album:      postgres.NewAlbumRepository(postgresDB),
-		Track:      postgres.NewTrackRepository(postgresDB),
-		Review:     postgres.NewReviewRepository(postgresDB),
-		Playlist:   postgres.NewPlaylistRepository(postgresDB),
-		Session:    sessionRepo,
-		MusicCache: musicCacheRepo,
+		User:        postgres.NewUserRepository(postgresDB),
+		Artist:      postgres.NewArtistRepository(postgresDB),
+		Album:       postgres.NewAlbumRepository(postgresDB),
+		Track:       postgres.NewTrackRepository(postgresDB),
+		Review:      postgres.NewReviewRepository(postgresDB),
+		TrackReview: postgres.NewTrackReviewRepository(postgresDB),
+		Playlist:    postgres.NewPlaylistRepository(postgresDB),
+		Spotify:     postgres.NewSpotifyTokenRepository(postgresDB),
+		Session:     sessionRepo,
+		MusicCache:  musicCacheRepo,
 	}
 
 	// Initialize Spotify services (optional)
@@ -71,7 +73,7 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 		spotifyClient := spotify.NewClient(spotify.Config{
 			ClientID:     cfg.SpotifyClientID,
 			ClientSecret: cfg.SpotifyClientSecret,
-			RedirectURL:  "http://localhost:8080/callback", // Default redirect for client credentials
+			RedirectURL:  cfg.SpotifyRedirectURL, // Used for OAuth callback
 			Scopes:       []string{},                       // No scopes needed for client credentials flow
 		})
 
@@ -106,4 +108,14 @@ func (r *Resolver) Close() error {
 	// Note: In a production system, you'd want to track both connections
 	// and close them properly. For now, we'll add this placeholder.
 	return nil
+}
+
+// Repos exposes repositories for non-GraphQL handlers.
+func (r *Resolver) Repos() *repository.Repositories {
+	return r.repos
+}
+
+// SanitizeRedirectURI allows external handlers to validate redirects.
+func (r *Resolver) SanitizeRedirectURI(raw string) string {
+	return r.sanitizeRedirectURI(raw)
 }

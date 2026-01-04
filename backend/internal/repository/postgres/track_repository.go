@@ -60,6 +60,42 @@ func (r *trackRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Tr
 	return track, nil
 }
 
+func (r *trackRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Track, error) {
+	if len(ids) == 0 {
+		return []*models.Track{}, nil
+	}
+
+	query := `
+		SELECT id, spotify_id, title, album_id, duration_ms, track_number, created_at, updated_at
+		FROM tracks
+		WHERE id = ANY($1)
+	`
+
+	rows, err := r.db.Pool.Query(ctx, query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tracks by ids: %w", err)
+	}
+	defer rows.Close()
+
+	var tracks []*models.Track
+	for rows.Next() {
+		track := &models.Track{}
+		if err := rows.Scan(
+			&track.ID, &track.SpotifyID, &track.Title, &track.AlbumID,
+			&track.DurationMs, &track.TrackNumber, &track.CreatedAt, &track.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan track: %w", err)
+		}
+		tracks = append(tracks, track)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating tracks: %w", err)
+	}
+
+	return tracks, nil
+}
+
 func (r *trackRepository) GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Track, error) {
 	query := `
 		SELECT id, spotify_id, title, album_id, duration_ms, track_number, created_at, updated_at

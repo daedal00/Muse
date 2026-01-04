@@ -45,6 +45,7 @@ type AlbumRepository interface {
 type TrackRepository interface {
 	Create(ctx context.Context, track *models.Track) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Track, error)
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Track, error)
 	GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Track, error)
 	GetByAlbumID(ctx context.Context, albumID uuid.UUID, limit, offset int) ([]*models.Track, error)
 	CountByAlbumID(ctx context.Context, albumID uuid.UUID) (int, error)
@@ -69,9 +70,28 @@ type ReviewRepository interface {
 	Count(ctx context.Context) (int, error)
 }
 
+type TrackReviewRepository interface {
+	Create(ctx context.Context, review *models.TrackReview) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.TrackReview, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.TrackReview, error)
+	CountByUserID(ctx context.Context, userID uuid.UUID) (int, error)
+	GetByTrackID(ctx context.Context, trackID uuid.UUID, limit, offset int) ([]*models.TrackReview, error)
+	CountByTrackID(ctx context.Context, trackID uuid.UUID) (int, error)
+	AverageRatingByTrackID(ctx context.Context, trackID uuid.UUID) (*float64, error)
+	GetByUserAndTrack(ctx context.Context, userID, trackID uuid.UUID) (*models.TrackReview, error)
+	ListTopTracksByAverageRating(ctx context.Context, limit int) ([]*models.TrackReviewSummary, error)
+	ListTopTracksByReviewCount(ctx context.Context, limit int) ([]*models.TrackReviewSummary, error)
+	ListFavoritesByUserID(ctx context.Context, userID uuid.UUID, minRating, limit int) ([]*models.TrackReview, error)
+	List(ctx context.Context, limit, offset int) ([]*models.TrackReview, error)
+	Count(ctx context.Context) (int, error)
+	Update(ctx context.Context, review *models.TrackReview) error
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
 type PlaylistRepository interface {
 	Create(ctx context.Context, playlist *models.Playlist) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Playlist, error)
+	GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Playlist, error)
 	GetByCreatorID(ctx context.Context, creatorID uuid.UUID, limit, offset int) ([]*models.Playlist, error)
 	CountByCreatorID(ctx context.Context, creatorID uuid.UUID) (int, error)
 	Update(ctx context.Context, playlist *models.Playlist) error
@@ -85,6 +105,12 @@ type PlaylistRepository interface {
 	GetTracks(ctx context.Context, playlistID uuid.UUID, limit, offset int) ([]*models.Track, error)
 	CountTracks(ctx context.Context, playlistID uuid.UUID) (int, error)
 	ReorderTracks(ctx context.Context, playlistID uuid.UUID, trackPositions map[uuid.UUID]int) error
+}
+
+type SpotifyTokenRepository interface {
+	Upsert(ctx context.Context, token *models.SpotifyToken) error
+	GetByUserID(ctx context.Context, userID uuid.UUID) (*models.SpotifyToken, error)
+	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
 }
 
 type SessionRepository interface {
@@ -125,12 +151,14 @@ type MusicCacheRepository interface {
 
 // Repository container
 type Repositories struct {
-	User       UserRepository
-	Artist     ArtistRepository
-	Album      AlbumRepository
-	Track      TrackRepository
-	Review     ReviewRepository
-	Playlist   PlaylistRepository
-	Session    SessionRepository
-	MusicCache MusicCacheRepository // New: Redis music cache
+	User        UserRepository
+	Artist      ArtistRepository
+	Album       AlbumRepository
+	Track       TrackRepository
+	Review      ReviewRepository
+	TrackReview TrackReviewRepository
+	Playlist    PlaylistRepository
+	Spotify     SpotifyTokenRepository
+	Session     SessionRepository
+	MusicCache  MusicCacheRepository // New: Redis music cache
 }

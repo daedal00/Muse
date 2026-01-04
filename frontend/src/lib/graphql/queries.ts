@@ -152,12 +152,13 @@ export const GET_ALBUM = gql`
 `;
 
 export const GET_TRACK = gql`
-  query GetTrack($id: ID!) {
+  query GetTrack($id: ID!, $reviewsFirst: Int, $reviewsAfter: String) {
     track(id: $id) {
       id
       title
       duration
       trackNumber
+      averageRating
       album {
         id
         title
@@ -167,6 +168,26 @@ export const GET_TRACK = gql`
         artist {
           id
           name
+        }
+      }
+      reviews(first: $reviewsFirst, after: $reviewsAfter) {
+        totalCount
+        edges {
+          cursor
+          node {
+            id
+            rating
+            reviewText
+            createdAt
+            user {
+              id
+              name
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
     }
@@ -227,6 +248,163 @@ export const GET_PLAYLISTS = gql`
         hasNextPage
         endCursor
       }
+    }
+  }
+`;
+
+export const GET_TOP_TRACKS = gql`
+  query GetTopTracks($limit: Int, $sort: TopTrackSort) {
+    topTracks(limit: $limit, sort: $sort) {
+      averageRating
+      reviewCount
+      track {
+        id
+        title
+        album {
+          id
+          title
+          coverImage
+          artist {
+            name
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const GET_FAVORITE_TRACKS = gql`
+  query GetFavoriteTracks($limit: Int, $minRating: Int) {
+    favoriteTracks(limit: $limit, minRating: $minRating) {
+      id
+      rating
+      reviewText
+      createdAt
+      track {
+        id
+        title
+        album {
+          id
+          title
+          coverImage
+          artist {
+            name
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const GET_PROFILE = gql`
+  query GetProfile($trackReviewsFirst: Int, $trackReviewsAfter: String) {
+    me {
+      id
+      name
+      email
+      bio
+      avatar
+      trackReviews(first: $trackReviewsFirst, after: $trackReviewsAfter) {
+        totalCount
+        edges {
+          cursor
+          node {
+            id
+            rating
+            reviewText
+            createdAt
+            track {
+              id
+              title
+              album {
+                id
+                title
+                coverImage
+                artist {
+                  name
+                }
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+export const GET_SPOTIFY_STATUS = gql`
+  query GetSpotifyStatus {
+    spotifyStatus {
+      connected
+      displayName
+      scope
+      expiresAt
+    }
+  }
+`;
+
+export const GET_SPOTIFY_TOP_TRACKS = gql`
+  query GetSpotifyTopTracks($limit: Int, $timeRange: SpotifyTimeRange) {
+    spotifyTopTracks(limit: $limit, timeRange: $timeRange) {
+      id
+      title
+      duration
+      trackNumber
+      album {
+        id
+        title
+        coverImage
+        artist {
+          name
+        }
+      }
+      artists {
+        id
+        name
+      }
+      externalSource
+    }
+  }
+`;
+
+export const GET_SPOTIFY_SAVED_TRACKS = gql`
+  query GetSpotifySavedTracks($limit: Int, $offset: Int) {
+    spotifySavedTracks(limit: $limit, offset: $offset) {
+      id
+      title
+      duration
+      trackNumber
+      album {
+        id
+        title
+        coverImage
+        artist {
+          name
+        }
+      }
+      artists {
+        id
+        name
+      }
+      externalSource
+    }
+  }
+`;
+
+export const GET_SPOTIFY_PLAYLISTS = gql`
+  query GetSpotifyPlaylists($limit: Int, $offset: Int) {
+    spotifyPlaylists(limit: $limit, offset: $offset) {
+      id
+      name
+      description
+      coverImage
+      ownerName
+      trackCount
+      externalSource
     }
   }
 `;

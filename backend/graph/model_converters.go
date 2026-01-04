@@ -115,6 +115,21 @@ func dbReviewToGraphQL(dbReview *models.Review) *model.Review {
 	}
 }
 
+func dbTrackReviewToGraphQL(dbReview *models.TrackReview) *model.TrackReview {
+	if dbReview == nil {
+		return nil
+	}
+
+	return &model.TrackReview{
+		ID:         dbReview.ID.String(),
+		User:       dbUserToGraphQL(dbReview.User),
+		Track:      dbTrackToGraphQL(dbReview.Track),
+		Rating:     safeIntToInt32(dbReview.Rating),
+		ReviewText: dbReview.ReviewText,
+		CreatedAt:  dbReview.CreatedAt.Format(time.RFC3339),
+	}
+}
+
 func dbPlaylistToGraphQL(dbPlaylist *models.Playlist) *model.Playlist {
 	if dbPlaylist == nil {
 		return nil

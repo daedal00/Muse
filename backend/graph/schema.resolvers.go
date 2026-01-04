@@ -15,6 +15,7 @@ import (
 	"github.com/daedal00/muse/backend/graph/model"
 	"github.com/daedal00/muse/backend/internal/models"
 	redisrepo "github.com/daedal00/muse/backend/internal/repository/redis"
+	spotifyinternal "github.com/daedal00/muse/backend/internal/spotify"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	spotifyapi "github.com/zmb3/spotify/v2"
@@ -413,6 +414,94 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 	return graphqlReview, nil
 }
 
+// CreateTrackReview is the resolver for the createTrackReview field.
+func (r *mutationResolver) CreateTrackReview(ctx context.Context, input model.CreateTrackReviewInput) (*model.TrackReview, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] CreateTrackReview started - TrackID: %s, Rating: %d", input.TrackID, input.Rating)
+
+	userID, err := r.currentUserUUID(ctx)
+	if err != nil {
+		log.Printf("[MUTATION] CreateTrackReview failed - %v", err)
+		return nil, err
+	}
+
+	trackID, err := uuid.Parse(input.TrackID)
+	if err != nil {
+		log.Printf("[MUTATION] CreateTrackReview failed - Invalid track ID: %s", input.TrackID)
+		return nil, fmt.Errorf("invalid track ID")
+	}
+
+	if input.Rating < 1 || input.Rating > 5 {
+		log.Printf("[MUTATION] CreateTrackReview failed - Invalid rating: %d", input.Rating)
+		return nil, fmt.Errorf("rating must be between 1 and 5")
+	}
+
+	if _, err := r.repos.Track.GetByID(ctx, trackID); err != nil {
+		log.Printf("[MUTATION] CreateTrackReview failed - Track not found: %v", err)
+		return nil, fmt.Errorf("track not found: %w", err)
+	}
+
+	existing, err := r.repos.TrackReview.GetByUserAndTrack(ctx, userID, trackID)
+	if err == nil {
+		existing.Rating = int(input.Rating)
+		existing.ReviewText = input.ReviewText
+		existing.UpdatedAt = time.Now()
+
+		if err := r.repos.TrackReview.Update(ctx, existing); err != nil {
+			log.Printf("[MUTATION] CreateTrackReview failed - Update error: %v", err)
+			return nil, fmt.Errorf("failed to update track review: %w", err)
+		}
+
+		userCache := map[uuid.UUID]*models.User{}
+		trackCache := map[uuid.UUID]*models.Track{}
+		albumCache := map[uuid.UUID]*models.Album{}
+		artistCache := map[uuid.UUID]*models.Artist{}
+		if err := r.hydrateTrackReview(ctx, existing, userCache, trackCache, albumCache, artistCache); err != nil {
+			log.Printf("[MUTATION] CreateTrackReview failed - Hydration error: %v", err)
+			return nil, fmt.Errorf("failed to hydrate track review: %w", err)
+		}
+
+		duration := time.Since(start)
+		log.Printf("[MUTATION] CreateTrackReview completed (update) - ReviewID: %s, Duration: %v", existing.ID, duration)
+
+		return dbTrackReviewToGraphQL(existing), nil
+	}
+
+	if !isNotFoundError(err) {
+		log.Printf("[MUTATION] CreateTrackReview failed - Lookup error: %v", err)
+		return nil, fmt.Errorf("failed to check existing track review: %w", err)
+	}
+
+	dbReview := &models.TrackReview{
+		ID:         uuid.New(),
+		UserID:     userID,
+		TrackID:    trackID,
+		Rating:     int(input.Rating),
+		ReviewText: input.ReviewText,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	if err := r.repos.TrackReview.Create(ctx, dbReview); err != nil {
+		log.Printf("[MUTATION] CreateTrackReview failed - Database error: %v", err)
+		return nil, fmt.Errorf("failed to create track review: %w", err)
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	trackCache := map[uuid.UUID]*models.Track{}
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateTrackReview(ctx, dbReview, userCache, trackCache, albumCache, artistCache); err != nil {
+		log.Printf("[MUTATION] CreateTrackReview failed - Hydration error: %v", err)
+		return nil, fmt.Errorf("failed to hydrate track review: %w", err)
+	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] CreateTrackReview completed - ReviewID: %s, Duration: %v", dbReview.ID, duration)
+
+	return dbTrackReviewToGraphQL(dbReview), nil
+}
+
 // CreatePlaylist is the resolver for the createPlaylist field.
 func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.CreatePlaylistInput) (*model.Playlist, error) {
 	start := time.Now()
@@ -593,6 +682,184 @@ func (r *mutationResolver) ImportTrack(ctx context.Context, spotifyTrackID strin
 	log.Printf("[MUTATION] ImportTrack completed - TrackID: %s, Duration: %v", dbTrack.ID, duration)
 
 	return dbTrackToGraphQL(dbTrack), nil
+}
+
+// SpotifyAuthURL is the resolver for the spotifyAuthURL field.
+func (r *mutationResolver) SpotifyAuthURL(ctx context.Context, redirectURI *string) (string, error) {
+	userID, err := r.currentUserUUID(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if r.config.SpotifyClientID == "" || r.config.SpotifyClientSecret == "" {
+		return "", fmt.Errorf("spotify is not configured")
+	}
+
+	redirect := ""
+	if redirectURI != nil {
+		redirect = r.sanitizeRedirectURI(*redirectURI)
+	}
+
+	claims := SpotifyStateClaims{
+		UserID:      userID.String(),
+		RedirectURI: redirect,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(spotifyStateTTL())),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "muse-backend",
+		},
+	}
+
+	stateToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signedState, err := stateToken.SignedString([]byte(r.config.JWTSecret))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign spotify state: %w", err)
+	}
+
+	spotifyClient := spotifyinternal.NewClient(spotifyinternal.Config{
+		ClientID:     r.config.SpotifyClientID,
+		ClientSecret: r.config.SpotifyClientSecret,
+		RedirectURL:  r.config.SpotifyRedirectURL,
+		Scopes:       spotifyUserScopes(),
+	})
+
+	return spotifyClient.GetAuthURL(signedState), nil
+}
+
+// DisconnectSpotify is the resolver for the disconnectSpotify field.
+func (r *mutationResolver) DisconnectSpotify(ctx context.Context) (bool, error) {
+	userID, err := r.currentUserUUID(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if err := r.repos.Spotify.DeleteByUserID(ctx, userID); err != nil {
+		return false, fmt.Errorf("failed to disconnect spotify: %w", err)
+	}
+
+	return true, nil
+}
+
+// ImportSpotifyTopTracks is the resolver for the importSpotifyTopTracks field.
+func (r *mutationResolver) ImportSpotifyTopTracks(ctx context.Context, limit *int32, timeRange *model.SpotifyTimeRange) (*model.ImportSummary, error) {
+	services, _, err := r.spotifyUserServices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limitVal := 20
+	if limit != nil {
+		limitVal = int(*limit)
+	}
+
+	rangeInput := "MEDIUM_TERM"
+	if timeRange != nil {
+		rangeInput = string(*timeRange)
+	}
+
+	client := services.GetSpotifyClient()
+	page, err := client.CurrentUsersTopTracks(ctx, spotifyapi.Limit(limitVal), spotifyapi.Timerange(spotifyTimeRangeToRequest(rangeInput)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch spotify top tracks: %w", err)
+	}
+
+	summary := &model.ImportSummary{}
+	for _, track := range page.Tracks {
+		trackID := string(track.ID)
+		if trackID == "" {
+			continue
+		}
+
+		albumID := ""
+		if track.Album.ID != "" {
+			albumID = string(track.Album.ID)
+		}
+
+		_, trackCreated, albumCreated, err := r.importSpotifyTrack(ctx, trackID, albumID)
+		if err != nil {
+			return nil, err
+		}
+
+		if trackCreated {
+			summary.ImportedTracks++
+		}
+		if albumCreated {
+			summary.ImportedAlbums++
+		}
+	}
+
+	return summary, nil
+}
+
+// ImportSpotifySavedTracks is the resolver for the importSpotifySavedTracks field.
+func (r *mutationResolver) ImportSpotifySavedTracks(ctx context.Context, limit *int32, offset *int32) (*model.ImportSummary, error) {
+	services, _, err := r.spotifyUserServices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limitVal := 20
+	if limit != nil {
+		limitVal = int(*limit)
+	}
+	offsetVal := 0
+	if offset != nil {
+		offsetVal = int(*offset)
+	}
+
+	client := services.GetSpotifyClient()
+	page, err := client.CurrentUsersTracks(ctx, spotifyapi.Limit(limitVal), spotifyapi.Offset(offsetVal))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch spotify saved tracks: %w", err)
+	}
+
+	summary := &model.ImportSummary{}
+	for _, saved := range page.Tracks {
+		track := saved.FullTrack
+		trackID := string(track.ID)
+		if trackID == "" {
+			continue
+		}
+
+		albumID := ""
+		if track.Album.ID != "" {
+			albumID = string(track.Album.ID)
+		}
+
+		_, trackCreated, albumCreated, err := r.importSpotifyTrack(ctx, trackID, albumID)
+		if err != nil {
+			return nil, err
+		}
+
+		if trackCreated {
+			summary.ImportedTracks++
+		}
+		if albumCreated {
+			summary.ImportedAlbums++
+		}
+	}
+
+	return summary, nil
+}
+
+// ImportSpotifyPlaylist is the resolver for the importSpotifyPlaylist field.
+func (r *mutationResolver) ImportSpotifyPlaylist(ctx context.Context, spotifyPlaylistID string) (*model.ImportSummary, error) {
+	services, _, err := r.spotifyUserServices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	userID, err := r.currentUserUUID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	_, summary, err := r.importSpotifyPlaylist(ctx, services, spotifyPlaylistID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return summary, nil
 }
 
 // Tracks is the resolver for the tracks field.
@@ -1192,6 +1459,335 @@ func (r *queryResolver) Review(ctx context.Context, id string) (*model.Review, e
 	return dbReviewToGraphQL(dbReview), nil
 }
 
+// TrackReviews is the resolver for the trackReviews field.
+func (r *queryResolver) TrackReviews(ctx context.Context, first *int32, after *string) (*model.TrackReviewConnection, error) {
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	reviews, err := r.repos.TrackReview.List(ctx, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch track reviews: %w", err)
+	}
+
+	hasNextPage := len(reviews) > limit
+	if hasNextPage {
+		reviews = reviews[:limit]
+	}
+
+	userIDs := make(map[uuid.UUID]struct{})
+	trackIDs := make(map[uuid.UUID]struct{})
+	for _, review := range reviews {
+		userIDs[review.UserID] = struct{}{}
+		trackIDs[review.TrackID] = struct{}{}
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	if len(userIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(userIDs))
+		for id := range userIDs {
+			ids = append(ids, id)
+		}
+		users, err := r.repos.User.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch users: %w", err)
+		}
+		for _, user := range users {
+			userCache[user.ID] = user
+		}
+	}
+
+	trackCache := map[uuid.UUID]*models.Track{}
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if len(trackIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(trackIDs))
+		for id := range trackIDs {
+			ids = append(ids, id)
+		}
+		tracks, err := r.repos.Track.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch tracks: %w", err)
+		}
+		albumIDs := make(map[uuid.UUID]struct{})
+		for _, track := range tracks {
+			trackCache[track.ID] = track
+			albumIDs[track.AlbumID] = struct{}{}
+		}
+
+		if len(albumIDs) > 0 {
+			ids := make([]uuid.UUID, 0, len(albumIDs))
+			for id := range albumIDs {
+				ids = append(ids, id)
+			}
+			albums, err := r.repos.Album.GetByIDs(ctx, ids)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch albums: %w", err)
+			}
+			for _, album := range albums {
+				albumCache[album.ID] = album
+			}
+
+			artistIDs := make(map[uuid.UUID]struct{})
+			for _, album := range albums {
+				artistIDs[album.ArtistID] = struct{}{}
+			}
+			if len(artistIDs) > 0 {
+				ids := make([]uuid.UUID, 0, len(artistIDs))
+				for id := range artistIDs {
+					ids = append(ids, id)
+				}
+				artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch artists: %w", err)
+				}
+				for _, artist := range artists {
+					artistCache[artist.ID] = artist
+				}
+			}
+		}
+	}
+
+	edges := make([]*model.TrackReviewEdge, len(reviews))
+	for i, review := range reviews {
+		if err := r.hydrateTrackReview(ctx, review, userCache, trackCache, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track review: %w", err)
+		}
+		edges[i] = &model.TrackReviewEdge{
+			Cursor: r.paginationHelper.EncodeCursor(review.ID.String(), review.CreatedAt, offset+i),
+			Node:   dbTrackReviewToGraphQL(review),
+		}
+	}
+
+	totalCount, err := r.repos.TrackReview.Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count track reviews: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.TrackReviewConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
+// TrackReview is the resolver for the trackReview field.
+func (r *queryResolver) TrackReview(ctx context.Context, id string) (*model.TrackReview, error) {
+	reviewID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid track review ID")
+	}
+
+	dbReview, err := r.repos.TrackReview.GetByID(ctx, reviewID)
+	if err != nil {
+		return nil, fmt.Errorf("track review not found: %w", err)
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	trackCache := map[uuid.UUID]*models.Track{}
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateTrackReview(ctx, dbReview, userCache, trackCache, albumCache, artistCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate track review: %w", err)
+	}
+
+	return dbTrackReviewToGraphQL(dbReview), nil
+}
+
+// TopTracks is the resolver for the topTracks field.
+func (r *queryResolver) TopTracks(ctx context.Context, limit *int32, sort *model.TopTrackSort) ([]*model.TrackInsight, error) {
+	limitVal := 10
+	if limit != nil {
+		limitVal = int(*limit)
+	}
+
+	sortMode := model.TopTrackSortRating
+	if sort != nil {
+		sortMode = *sort
+	}
+
+	var summaries []*models.TrackReviewSummary
+	var err error
+	if sortMode == model.TopTrackSortReviews {
+		summaries, err = r.repos.TrackReview.ListTopTracksByReviewCount(ctx, limitVal)
+	} else {
+		summaries, err = r.repos.TrackReview.ListTopTracksByAverageRating(ctx, limitVal)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch top tracks: %w", err)
+	}
+
+	trackIDs := make([]uuid.UUID, 0, len(summaries))
+	for _, summary := range summaries {
+		trackIDs = append(trackIDs, summary.TrackID)
+	}
+
+	tracks, err := r.repos.Track.GetByIDs(ctx, trackIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tracks: %w", err)
+	}
+
+	trackCache := map[uuid.UUID]*models.Track{}
+	albumIDs := make(map[uuid.UUID]struct{})
+	for _, track := range tracks {
+		trackCache[track.ID] = track
+		albumIDs[track.AlbumID] = struct{}{}
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if len(albumIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(albumIDs))
+		for id := range albumIDs {
+			ids = append(ids, id)
+		}
+		albums, err := r.repos.Album.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch albums: %w", err)
+		}
+		for _, album := range albums {
+			albumCache[album.ID] = album
+		}
+
+		artistIDs := make(map[uuid.UUID]struct{})
+		for _, album := range albums {
+			artistIDs[album.ArtistID] = struct{}{}
+		}
+		if len(artistIDs) > 0 {
+			ids := make([]uuid.UUID, 0, len(artistIDs))
+			for id := range artistIDs {
+				ids = append(ids, id)
+			}
+			artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch artists: %w", err)
+			}
+			for _, artist := range artists {
+				artistCache[artist.ID] = artist
+			}
+		}
+	}
+
+	insights := make([]*model.TrackInsight, 0, len(summaries))
+	for _, summary := range summaries {
+		track := trackCache[summary.TrackID]
+		if track == nil {
+			continue
+		}
+		if err := r.hydrateTrack(ctx, track, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track: %w", err)
+		}
+		insights = append(insights, &model.TrackInsight{
+			Track:         dbTrackToGraphQL(track),
+			AverageRating: summary.AverageRating,
+			ReviewCount:   safeIntToInt32(summary.ReviewCount),
+		})
+	}
+
+	return insights, nil
+}
+
+// FavoriteTracks is the resolver for the favoriteTracks field.
+func (r *queryResolver) FavoriteTracks(ctx context.Context, limit *int32, minRating *int32) ([]*model.TrackReview, error) {
+	userID, err := r.currentUserUUID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limitVal := 10
+	if limit != nil {
+		limitVal = int(*limit)
+	}
+
+	minRatingVal := 4
+	if minRating != nil {
+		minRatingVal = int(*minRating)
+	}
+
+	reviews, err := r.repos.TrackReview.ListFavoritesByUserID(ctx, userID, minRatingVal, limitVal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch favorite tracks: %w", err)
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	trackCache := map[uuid.UUID]*models.Track{}
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+
+	trackIDs := make(map[uuid.UUID]struct{})
+	for _, review := range reviews {
+		trackIDs[review.TrackID] = struct{}{}
+	}
+
+	if len(trackIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(trackIDs))
+		for id := range trackIDs {
+			ids = append(ids, id)
+		}
+		tracks, err := r.repos.Track.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch tracks: %w", err)
+		}
+		albumIDs := make(map[uuid.UUID]struct{})
+		for _, track := range tracks {
+			trackCache[track.ID] = track
+			albumIDs[track.AlbumID] = struct{}{}
+		}
+
+		if len(albumIDs) > 0 {
+			ids := make([]uuid.UUID, 0, len(albumIDs))
+			for id := range albumIDs {
+				ids = append(ids, id)
+			}
+			albums, err := r.repos.Album.GetByIDs(ctx, ids)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch albums: %w", err)
+			}
+			for _, album := range albums {
+				albumCache[album.ID] = album
+			}
+
+			artistIDs := make(map[uuid.UUID]struct{})
+			for _, album := range albums {
+				artistIDs[album.ArtistID] = struct{}{}
+			}
+			if len(artistIDs) > 0 {
+				ids := make([]uuid.UUID, 0, len(artistIDs))
+				for id := range artistIDs {
+					ids = append(ids, id)
+				}
+				artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch artists: %w", err)
+				}
+				for _, artist := range artists {
+					artistCache[artist.ID] = artist
+				}
+			}
+		}
+	}
+
+	results := make([]*model.TrackReview, 0, len(reviews))
+	for _, review := range reviews {
+		if err := r.hydrateTrackReview(ctx, review, userCache, trackCache, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track review: %w", err)
+		}
+		results = append(results, dbTrackReviewToGraphQL(review))
+	}
+
+	return results, nil
+}
+
 // RecentlyPlayed is the resolver for the recentlyPlayed field.
 func (r *queryResolver) RecentlyPlayed(ctx context.Context, limit *int32) ([]*model.Track, error) {
 	// Extract UserID from Context (must be authenticated)
@@ -1532,6 +2128,142 @@ func (r *queryResolver) SearchTracks(ctx context.Context, input model.TrackSearc
 	return trackResults, nil
 }
 
+// SpotifyStatus is the resolver for the spotifyStatus field.
+func (r *queryResolver) SpotifyStatus(ctx context.Context) (*model.SpotifyAuthStatus, error) {
+	services, token, err := r.spotifyUserServices(ctx)
+	if err != nil {
+		if err.Error() == "unauthenticated" || err.Error() == "spotify not connected" {
+			return &model.SpotifyAuthStatus{Connected: false}, nil
+		}
+		return nil, err
+	}
+
+	status := &model.SpotifyAuthStatus{
+		Connected: true,
+		ExpiresAt: optionalDateTime(token.ExpiresAt),
+		Scope:     token.Scope,
+	}
+
+	if profile, err := services.User.GetCurrentUser(ctx); err == nil {
+		if profile.DisplayName != "" {
+			name := profile.DisplayName
+			status.DisplayName = &name
+		}
+	}
+
+	return status, nil
+}
+
+// SpotifyTopTracks is the resolver for the spotifyTopTracks field.
+func (r *queryResolver) SpotifyTopTracks(ctx context.Context, limit *int32, timeRange *model.SpotifyTimeRange) ([]*model.TrackSearchResult, error) {
+	services, _, err := r.spotifyUserServices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limitVal := 10
+	if limit != nil {
+		limitVal = int(*limit)
+	}
+
+	rangeInput := "MEDIUM_TERM"
+	if timeRange != nil {
+		rangeInput = string(*timeRange)
+	}
+
+	client := services.GetSpotifyClient()
+	page, err := client.CurrentUsersTopTracks(ctx, spotifyapi.Limit(limitVal), spotifyapi.Timerange(spotifyTimeRangeToRequest(rangeInput)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch spotify top tracks: %w", err)
+	}
+
+	results := make([]*model.TrackSearchResult, 0, len(page.Tracks))
+	for _, track := range page.Tracks {
+		results = append(results, spotifyFullTrackToSearchResult(track))
+	}
+
+	return results, nil
+}
+
+// SpotifySavedTracks is the resolver for the spotifySavedTracks field.
+func (r *queryResolver) SpotifySavedTracks(ctx context.Context, limit *int32, offset *int32) ([]*model.TrackSearchResult, error) {
+	services, _, err := r.spotifyUserServices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limitVal := 20
+	if limit != nil {
+		limitVal = int(*limit)
+	}
+	offsetVal := 0
+	if offset != nil {
+		offsetVal = int(*offset)
+	}
+
+	client := services.GetSpotifyClient()
+	page, err := client.CurrentUsersTracks(ctx, spotifyapi.Limit(limitVal), spotifyapi.Offset(offsetVal))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch spotify saved tracks: %w", err)
+	}
+
+	results := make([]*model.TrackSearchResult, 0, len(page.Tracks))
+	for _, saved := range page.Tracks {
+		results = append(results, spotifyFullTrackToSearchResult(saved.FullTrack))
+	}
+
+	return results, nil
+}
+
+// SpotifyPlaylists is the resolver for the spotifyPlaylists field.
+func (r *queryResolver) SpotifyPlaylists(ctx context.Context, limit *int32, offset *int32) ([]*model.SpotifyPlaylistResult, error) {
+	services, _, err := r.spotifyUserServices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limitVal := 20
+	if limit != nil {
+		limitVal = int(*limit)
+	}
+	offsetVal := 0
+	if offset != nil {
+		offsetVal = int(*offset)
+	}
+
+	page, err := services.User.GetCurrentUserPlaylists(ctx, spotifyapi.Limit(limitVal), spotifyapi.Offset(offsetVal))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch spotify playlists: %w", err)
+	}
+
+	results := make([]*model.SpotifyPlaylistResult, 0, len(page.Playlists))
+	for _, playlist := range page.Playlists {
+		var coverImage *string
+		if len(playlist.Images) > 0 {
+			coverImage = &playlist.Images[0].URL
+		}
+
+		ownerName := ""
+		if playlist.Owner.DisplayName != "" {
+			ownerName = playlist.Owner.DisplayName
+		} else {
+			ownerName = playlist.Owner.ID
+		}
+
+		results = append(results, &model.SpotifyPlaylistResult{
+			ID:             string(playlist.ID),
+			Name:           playlist.Name,
+			Description:    optionalString(playlist.Description),
+			CoverImage:     coverImage,
+			OwnerName:      optionalString(ownerName),
+			TrackCount:     safeIntToInt32(int(playlist.Tracks.Total)),
+			ExternalSource: model.ExternalSourceSpotify,
+		})
+	}
+
+	return results, nil
+}
+
 // ReviewAdded is the resolver for the reviewAdded field.
 func (r *subscriptionResolver) ReviewAdded(ctx context.Context, albumID string) (<-chan *model.Review, error) {
 	// Subscribe to review updates for the specified album using subscription manager
@@ -1541,6 +2273,110 @@ func (r *subscriptionResolver) ReviewAdded(ctx context.Context, albumID string) 
 	_ = cleanup
 
 	return reviewChan, nil
+}
+
+// AverageRating is the resolver for the averageRating field.
+func (r *trackResolver) AverageRating(ctx context.Context, obj *model.Track) (*float64, error) {
+	trackID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid track ID")
+	}
+
+	avg, err := r.repos.TrackReview.AverageRatingByTrackID(ctx, trackID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch average rating: %w", err)
+	}
+
+	return avg, nil
+}
+
+// Reviews is the resolver for the reviews field.
+func (r *trackResolver) Reviews(ctx context.Context, obj *model.Track, first *int32, after *string) (*model.TrackReviewConnection, error) {
+	trackID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid track ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	reviews, err := r.repos.TrackReview.GetByTrackID(ctx, trackID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch track reviews: %w", err)
+	}
+
+	hasNextPage := len(reviews) > limit
+	if hasNextPage {
+		reviews = reviews[:limit]
+	}
+
+	dbTrack, err := r.repos.Track.GetByID(ctx, trackID)
+	if err != nil {
+		return nil, fmt.Errorf("track not found: %w", err)
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateTrack(ctx, dbTrack, albumCache, artistCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate track: %w", err)
+	}
+
+	userIDs := make(map[uuid.UUID]struct{})
+	for _, review := range reviews {
+		userIDs[review.UserID] = struct{}{}
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	if len(userIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(userIDs))
+		for id := range userIDs {
+			ids = append(ids, id)
+		}
+		users, err := r.repos.User.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch users: %w", err)
+		}
+		for _, user := range users {
+			userCache[user.ID] = user
+		}
+	}
+
+	trackCache := map[uuid.UUID]*models.Track{
+		dbTrack.ID: dbTrack,
+	}
+
+	edges := make([]*model.TrackReviewEdge, len(reviews))
+	for i, review := range reviews {
+		if err := r.hydrateTrackReview(ctx, review, userCache, trackCache, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track review: %w", err)
+		}
+		edges[i] = &model.TrackReviewEdge{
+			Cursor: r.paginationHelper.EncodeCursor(review.ID.String(), review.CreatedAt, offset+i),
+			Node:   dbTrackReviewToGraphQL(review),
+		}
+	}
+
+	totalCount, err := r.repos.TrackReview.CountByTrackID(ctx, trackID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count track reviews: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.TrackReviewConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
 }
 
 // Playlists is the resolver for the playlists field.
@@ -1712,6 +2548,125 @@ func (r *userResolver) Reviews(ctx context.Context, obj *model.User, first *int3
 	}, nil
 }
 
+// TrackReviews is the resolver for the trackReviews field.
+func (r *userResolver) TrackReviews(ctx context.Context, obj *model.User, first *int32, after *string) (*model.TrackReviewConnection, error) {
+	userID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	reviews, err := r.repos.TrackReview.GetByUserID(ctx, userID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch track reviews: %w", err)
+	}
+
+	hasNextPage := len(reviews) > limit
+	if hasNextPage {
+		reviews = reviews[:limit]
+	}
+
+	dbUser, err := r.repos.User.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	userCache := map[uuid.UUID]*models.User{
+		dbUser.ID: dbUser,
+	}
+
+	trackIDs := make(map[uuid.UUID]struct{})
+	for _, review := range reviews {
+		trackIDs[review.TrackID] = struct{}{}
+	}
+
+	trackCache := map[uuid.UUID]*models.Track{}
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if len(trackIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(trackIDs))
+		for id := range trackIDs {
+			ids = append(ids, id)
+		}
+		tracks, err := r.repos.Track.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch tracks: %w", err)
+		}
+		albumIDs := make(map[uuid.UUID]struct{})
+		for _, track := range tracks {
+			trackCache[track.ID] = track
+			albumIDs[track.AlbumID] = struct{}{}
+		}
+
+		if len(albumIDs) > 0 {
+			ids := make([]uuid.UUID, 0, len(albumIDs))
+			for id := range albumIDs {
+				ids = append(ids, id)
+			}
+			albums, err := r.repos.Album.GetByIDs(ctx, ids)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch albums: %w", err)
+			}
+			for _, album := range albums {
+				albumCache[album.ID] = album
+			}
+
+			artistIDs := make(map[uuid.UUID]struct{})
+			for _, album := range albums {
+				artistIDs[album.ArtistID] = struct{}{}
+			}
+			if len(artistIDs) > 0 {
+				ids := make([]uuid.UUID, 0, len(artistIDs))
+				for id := range artistIDs {
+					ids = append(ids, id)
+				}
+				artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch artists: %w", err)
+				}
+				for _, artist := range artists {
+					artistCache[artist.ID] = artist
+				}
+			}
+		}
+	}
+
+	edges := make([]*model.TrackReviewEdge, len(reviews))
+	for i, review := range reviews {
+		if err := r.hydrateTrackReview(ctx, review, userCache, trackCache, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track review: %w", err)
+		}
+		edges[i] = &model.TrackReviewEdge{
+			Cursor: r.paginationHelper.EncodeCursor(review.ID.String(), review.CreatedAt, offset+i),
+			Node:   dbTrackReviewToGraphQL(review),
+		}
+	}
+
+	totalCount, err := r.repos.TrackReview.CountByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count track reviews: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.TrackReviewConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
 // Album returns AlbumResolver implementation.
 func (r *Resolver) Album() AlbumResolver { return &albumResolver{r} }
 
@@ -1730,6 +2685,9 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
+// Track returns TrackResolver implementation.
+func (r *Resolver) Track() TrackResolver { return &trackResolver{r} }
+
 // User returns UserResolver implementation.
 func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
@@ -1739,4 +2697,5 @@ type mutationResolver struct{ *Resolver }
 type playlistResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+type trackResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }

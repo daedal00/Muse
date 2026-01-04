@@ -5,8 +5,8 @@ export default function SearchPage() {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Search Music</h1>
-        <p className="text-lg text-gray-600">
+        <h1 className="text-3xl font-semibold mb-4">Search Music</h1>
+        <p className="text-lg text-slate-600 dark:text-slate-300">
           Test the Spotify API integration by searching for albums, artists, and
           tracks
         </p>
@@ -14,9 +14,9 @@ export default function SearchPage() {
 
       <SearchForm />
 
-      <div className="bg-blue-50 border border-blue-200 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold mb-3">🧪 Testing Notes</h3>
-        <ul className="list-disc list-inside space-y-2 text-gray-700">
+      <div className="card-muted">
+        <h3 className="text-lg font-semibold mb-3">Testing Notes</h3>
+        <ul className="list-disc list-inside space-y-2 text-slate-600 dark:text-slate-300">
           <li>This search uses your backend's Spotify API integration</li>
           <li>Results are fetched in real-time from Spotify</li>
           <li>

@@ -19,6 +19,7 @@ type User {
   avatar: String
   playlists(first: Int, after: String): PlaylistConnection! @goField(forceResolver: true)
   reviews(first: Int, after: String): ReviewConnection! @goField(forceResolver: true)
+  trackReviews(first: Int, after: String): TrackReviewConnection! @goField(forceResolver: true)
 }
 
 type Album {
@@ -47,6 +48,8 @@ type Track {
   duration: Int # Duration in seconds
   trackNumber: Int
   album: Album!
+  averageRating: Float @goField(forceResolver: true)
+  reviews(first: Int, after: String): TrackReviewConnection! @goField(forceResolver: true)
 }
 
 type Review {
@@ -54,6 +57,15 @@ type Review {
   user: User!
   album: Album!
   rating: Int! # 1-5
+  reviewText: String
+  createdAt: DateTime!
+}
+
+type TrackReview {
+  id: ID!
+  user: User!
+  track: Track!
+  rating: Int!
   reviewText: String
   createdAt: DateTime!
 }
@@ -66,6 +78,35 @@ type Playlist {
   tracks(first: Int, after: String): TrackConnection! @goField(forceResolver: true)
   creator: User!
   createdAt: DateTime!
+}
+
+type TrackInsight {
+  track: Track!
+  averageRating: Float!
+  reviewCount: Int!
+}
+
+type SpotifyAuthStatus {
+  connected: Boolean!
+  expiresAt: DateTime
+  scope: String
+  displayName: String
+}
+
+type SpotifyPlaylistResult {
+  id: ID!
+  name: String!
+  description: String
+  coverImage: String
+  ownerName: String
+  trackCount: Int!
+  externalSource: ExternalSource!
+}
+
+type ImportSummary {
+  importedTracks: Int!
+  importedAlbums: Int!
+  importedPlaylists: Int!
 }
 
 # ---------------------------------------
@@ -103,6 +144,17 @@ type ReviewConnection {
 type ReviewEdge {
   cursor: String!
   node: Review!
+}
+
+type TrackReviewConnection {
+  totalCount: Int!
+  edges: [TrackReviewEdge!]!
+  pageInfo: PageInfo!
+}
+
+type TrackReviewEdge {
+  cursor: String!
+  node: TrackReview!
 }
 
 type PlaylistConnection {
@@ -175,6 +227,17 @@ input TrackSearchInput {
   source: ExternalSource = SPOTIFY
 }
 
+enum TopTrackSort {
+  RATING
+  REVIEWS
+}
+
+enum SpotifyTimeRange {
+  SHORT_TERM
+  MEDIUM_TERM
+  LONG_TERM
+}
+
 # ---------------------------------------
 # Query Type – Core and External Searches
 # ---------------------------------------
@@ -195,12 +258,24 @@ type Query {
   reviews(first: Int, after: String): ReviewConnection!
   review(id: ID!): Review
 
+  trackReviews(first: Int, after: String): TrackReviewConnection!
+  trackReview(id: ID!): TrackReview
+
+  topTracks(limit: Int = 10, sort: TopTrackSort = RATING): [TrackInsight!]!
+  favoriteTracks(limit: Int = 10, minRating: Int = 4): [TrackReview!]!
+
   # User activity queries
   recentlyPlayed(limit: Int = 20): [Track!]! # User's recently played tracks from cache
   # External Search Queries
   searchAlbums(input: AlbumSearchInput!): [AlbumSearchResult!]!
   searchArtists(input: ArtistSearchInput!): [ArtistSearchResult!]!
   searchTracks(input: TrackSearchInput!): [TrackSearchResult!]!
+
+  # Spotify user data
+  spotifyStatus: SpotifyAuthStatus!
+  spotifyTopTracks(limit: Int = 10, timeRange: SpotifyTimeRange = MEDIUM_TERM): [TrackSearchResult!]!
+  spotifySavedTracks(limit: Int = 20, offset: Int = 0): [TrackSearchResult!]!
+  spotifyPlaylists(limit: Int = 20, offset: Int = 0): [SpotifyPlaylistResult!]!
 }
 
 # ---------------------------------------
@@ -209,6 +284,12 @@ type Query {
 
 input CreateReviewInput {
   albumId: ID!
+  rating: Int!
+  reviewText: String
+}
+
+input CreateTrackReviewInput {
+  trackId: ID!
   rating: Int!
   reviewText: String
 }
@@ -223,11 +304,17 @@ type Mutation {
   createUser(name: String!, email: String!, password: String!): User!
   login(email: String!, password: String!): String! # Returns simple token (UserID)
   createReview(input: CreateReviewInput!): Review!
+  createTrackReview(input: CreateTrackReviewInput!): TrackReview!
   createPlaylist(input: CreatePlaylistInput!): Playlist!
   addTrackToPlaylist(playlistId: ID!, trackId: ID!): Playlist!
   importAlbum(spotifyAlbumID: ID!): Album!
   importArtist(spotifyArtistID: ID!): Artist!
   importTrack(spotifyTrackID: ID!): Track!
+  spotifyAuthURL(redirectURI: String): String!
+  disconnectSpotify: Boolean!
+  importSpotifyTopTracks(limit: Int = 20, timeRange: SpotifyTimeRange = MEDIUM_TERM): ImportSummary!
+  importSpotifySavedTracks(limit: Int = 20, offset: Int = 0): ImportSummary!
+  importSpotifyPlaylist(spotifyPlaylistID: ID!): ImportSummary!
 }
 
 type Subscription {

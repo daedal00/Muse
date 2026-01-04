@@ -80,6 +80,18 @@ type CreateReviewInput struct {
 	ReviewText *string `json:"reviewText,omitempty"`
 }
 
+type CreateTrackReviewInput struct {
+	TrackID    string  `json:"trackId"`
+	Rating     int32   `json:"rating"`
+	ReviewText *string `json:"reviewText,omitempty"`
+}
+
+type ImportSummary struct {
+	ImportedTracks    int32 `json:"importedTracks"`
+	ImportedAlbums    int32 `json:"importedAlbums"`
+	ImportedPlaylists int32 `json:"importedPlaylists"`
+}
+
 type Mutation struct {
 }
 
@@ -132,16 +144,35 @@ type ReviewEdge struct {
 	Node   *Review `json:"node"`
 }
 
+type SpotifyAuthStatus struct {
+	Connected   bool    `json:"connected"`
+	ExpiresAt   *string `json:"expiresAt,omitempty"`
+	Scope       *string `json:"scope,omitempty"`
+	DisplayName *string `json:"displayName,omitempty"`
+}
+
+type SpotifyPlaylistResult struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Description    *string        `json:"description,omitempty"`
+	CoverImage     *string        `json:"coverImage,omitempty"`
+	OwnerName      *string        `json:"ownerName,omitempty"`
+	TrackCount     int32          `json:"trackCount"`
+	ExternalSource ExternalSource `json:"externalSource"`
+}
+
 type Subscription struct {
 }
 
 type Track struct {
-	ID          string  `json:"id"`
-	SpotifyID   *string `json:"spotifyID,omitempty"`
-	Title       string  `json:"title"`
-	Duration    *int32  `json:"duration,omitempty"`
-	TrackNumber *int32  `json:"trackNumber,omitempty"`
-	Album       *Album  `json:"album"`
+	ID            string                 `json:"id"`
+	SpotifyID     *string                `json:"spotifyID,omitempty"`
+	Title         string                 `json:"title"`
+	Duration      *int32                 `json:"duration,omitempty"`
+	TrackNumber   *int32                 `json:"trackNumber,omitempty"`
+	Album         *Album                 `json:"album"`
+	AverageRating *float64               `json:"averageRating,omitempty"`
+	Reviews       *TrackReviewConnection `json:"reviews"`
 }
 
 type TrackConnection struct {
@@ -153,6 +184,32 @@ type TrackConnection struct {
 type TrackEdge struct {
 	Cursor string `json:"cursor"`
 	Node   *Track `json:"node"`
+}
+
+type TrackInsight struct {
+	Track         *Track  `json:"track"`
+	AverageRating float64 `json:"averageRating"`
+	ReviewCount   int32   `json:"reviewCount"`
+}
+
+type TrackReview struct {
+	ID         string  `json:"id"`
+	User       *User   `json:"user"`
+	Track      *Track  `json:"track"`
+	Rating     int32   `json:"rating"`
+	ReviewText *string `json:"reviewText,omitempty"`
+	CreatedAt  string  `json:"createdAt"`
+}
+
+type TrackReviewConnection struct {
+	TotalCount int32              `json:"totalCount"`
+	Edges      []*TrackReviewEdge `json:"edges"`
+	PageInfo   *PageInfo          `json:"pageInfo"`
+}
+
+type TrackReviewEdge struct {
+	Cursor string       `json:"cursor"`
+	Node   *TrackReview `json:"node"`
 }
 
 type TrackSearchInput struct {
@@ -173,13 +230,14 @@ type TrackSearchResult struct {
 }
 
 type User struct {
-	ID        string              `json:"id"`
-	Name      string              `json:"name"`
-	Email     string              `json:"email"`
-	Bio       *string             `json:"bio,omitempty"`
-	Avatar    *string             `json:"avatar,omitempty"`
-	Playlists *PlaylistConnection `json:"playlists"`
-	Reviews   *ReviewConnection   `json:"reviews"`
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	Email        string                 `json:"email"`
+	Bio          *string                `json:"bio,omitempty"`
+	Avatar       *string                `json:"avatar,omitempty"`
+	Playlists    *PlaylistConnection    `json:"playlists"`
+	Reviews      *ReviewConnection      `json:"reviews"`
+	TrackReviews *TrackReviewConnection `json:"trackReviews"`
 }
 
 type ExternalSource string
@@ -232,6 +290,118 @@ func (e *ExternalSource) UnmarshalJSON(b []byte) error {
 }
 
 func (e ExternalSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SpotifyTimeRange string
+
+const (
+	SpotifyTimeRangeShortTerm  SpotifyTimeRange = "SHORT_TERM"
+	SpotifyTimeRangeMediumTerm SpotifyTimeRange = "MEDIUM_TERM"
+	SpotifyTimeRangeLongTerm   SpotifyTimeRange = "LONG_TERM"
+)
+
+var AllSpotifyTimeRange = []SpotifyTimeRange{
+	SpotifyTimeRangeShortTerm,
+	SpotifyTimeRangeMediumTerm,
+	SpotifyTimeRangeLongTerm,
+}
+
+func (e SpotifyTimeRange) IsValid() bool {
+	switch e {
+	case SpotifyTimeRangeShortTerm, SpotifyTimeRangeMediumTerm, SpotifyTimeRangeLongTerm:
+		return true
+	}
+	return false
+}
+
+func (e SpotifyTimeRange) String() string {
+	return string(e)
+}
+
+func (e *SpotifyTimeRange) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SpotifyTimeRange(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SpotifyTimeRange", str)
+	}
+	return nil
+}
+
+func (e SpotifyTimeRange) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SpotifyTimeRange) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SpotifyTimeRange) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TopTrackSort string
+
+const (
+	TopTrackSortRating  TopTrackSort = "RATING"
+	TopTrackSortReviews TopTrackSort = "REVIEWS"
+)
+
+var AllTopTrackSort = []TopTrackSort{
+	TopTrackSortRating,
+	TopTrackSortReviews,
+}
+
+func (e TopTrackSort) IsValid() bool {
+	switch e {
+	case TopTrackSortRating, TopTrackSortReviews:
+		return true
+	}
+	return false
+}
+
+func (e TopTrackSort) String() string {
+	return string(e)
+}
+
+func (e *TopTrackSort) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TopTrackSort(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TopTrackSort", str)
+	}
+	return nil
+}
+
+func (e TopTrackSort) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TopTrackSort) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TopTrackSort) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

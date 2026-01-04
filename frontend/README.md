@@ -7,9 +7,13 @@ This is a simple Next.js frontend created to test your Muse backend GraphQL API.
 - 🔍 **Search**: Test Spotify API integration for albums, artists, and tracks
 - 🔐 **Authentication**: User registration and login functionality
 - 💿 **Albums**: Browse stored albums with pagination
-- 📄 **Details**: Album and track detail pages with metadata and ratings (track pages show album rating)
+- 📄 **Details**: Album and track detail pages with metadata and ratings
+- ⭐ **Track Ratings**: Rate tracks with star-only reviews
 - ⭐ **Reviews**: Browse album reviews (creation via GraphQL mutation)
 - 🎵 **Playlists**: Browse user playlists
+- 📊 **Profile & Stats**: Personalized profile, favorites, and top tracks
+- 🎧 **Spotify Imports**: Connect Spotify and import top tracks, saved tracks, playlists
+- 🌗 **Dark Mode**: Theme toggle in the header
 - 📊 **GraphQL Integration**: Full Apollo Client setup with error handling
 
 ## Prerequisites
@@ -92,6 +96,7 @@ Your backend should be accessible at `http://localhost:8080`
 
 - `/` - Homepage with overview and backend connection status
 - `/dashboard` - Logged-in dashboard summary
+- `/profile` - Profile, favorites, Spotify stats, and home customization
 - `/search` - Search albums, artists, and tracks using Spotify API
 - `/auth` - User registration and login
 - `/albums` - Browse stored albums with pagination
@@ -112,6 +117,12 @@ The frontend includes pre-built GraphQL operations for:
 - `searchTracks` - Search tracks via Spotify
 - `album` - Fetch album detail with tracks and reviews
 - `track` - Fetch track detail
+- `topTracks` - Fetch top-rated tracks on Muse
+- `favoriteTracks` - Fetch favorite tracks for the current user
+- `spotifyStatus` - Check Spotify connection status
+- `spotifyTopTracks` - Fetch Spotify top tracks
+- `spotifySavedTracks` - Fetch Spotify saved tracks
+- `spotifyPlaylists` - Fetch Spotify playlists
 - `albums` - Get stored albums with pagination
 - `reviews` - Get reviews with pagination
 - `playlists` - Get playlists with pagination
@@ -125,6 +136,12 @@ The frontend includes pre-built GraphQL operations for:
 - `importAlbum` - Persist album (and tracks) from Spotify
 - `importArtist` - Persist artist from Spotify
 - `importTrack` - Persist track from Spotify
+- `createTrackReview` - Rate a track (optional text)
+- `spotifyAuthURL` - Start Spotify OAuth flow
+- `disconnectSpotify` - Remove Spotify connection
+- `importSpotifyTopTracks` - Import Spotify top tracks
+- `importSpotifySavedTracks` - Import Spotify saved tracks
+- `importSpotifyPlaylist` - Import a Spotify playlist
 
 ## Development Notes
 
@@ -153,6 +170,12 @@ The frontend includes pre-built GraphQL operations for:
 1. Ensure backend is running on port 8080
 2. Check CORS settings in your backend
 3. Verify GraphQL endpoint is `/query`
+
+### Spotify OAuth Issues
+
+1. Set `SPOTIFY_REDIRECT_URL` to `http://localhost:8080/spotify/callback`
+2. Set `FRONTEND_URL` to `http://localhost:3000` in the backend `.env`
+3. Ensure your Spotify app has the redirect URL configured
 
 ### Authentication Issues
 

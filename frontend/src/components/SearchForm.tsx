@@ -109,8 +109,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
   }, [results, searchType, onResults]);
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4">Search Music</h2>
+    <div className="card">
+      <h2 className="text-xl font-semibold mb-4">Search Music</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex space-x-4">
@@ -120,7 +120,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search for albums, artists, or tracks..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input"
             />
           </div>
 
@@ -131,7 +131,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
                 e.target.value as "albums" | "artists" | "tracks"
               )
             }
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="select"
           >
             <option value="albums">Albums</option>
             <option value="artists">Artists</option>
@@ -141,7 +141,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Searching..." : "Search"}
           </button>
@@ -149,13 +149,13 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
       </form>
 
       {error && (
-        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           Error: {error.message}
         </div>
       )}
 
       {importError && (
-        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           Import Error: {importError}
         </div>
       )}
@@ -167,10 +167,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
           </h3>
           <div className="grid gap-4">
             {results.map((item: any) => (
-              <div
-                key={item.id}
-                className="border border-gray-200 rounded-lg p-4"
-              >
+              <div key={item.id} className="card-muted">
                 {searchType === "albums" ? (
                   <div className="flex items-center space-x-4">
                     {item.coverImage && (
@@ -182,16 +179,16 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
                     )}
                     <div>
                       <h4 className="font-semibold">{item.title}</h4>
-                      <p className="text-gray-600">
+                      <p className="text-slate-600 dark:text-slate-300">
                         by {item.artist.map((a: any) => a.name).join(", ")}
                       </p>
                       {item.releaseDate && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                           Released:{" "}
                           {new Date(item.releaseDate).toLocaleDateString()}
                         </p>
                       )}
-                      <p className="text-xs text-blue-600">
+                      <p className="text-xs text-emerald-600">
                         Source: {item.externalSource}
                       </p>
                     </div>
@@ -200,7 +197,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
                         type="button"
                         onClick={() => handleImport("albums", item.id)}
                         disabled={importingID === item.id}
-                        className="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                        className="btn-secondary disabled:opacity-50"
                       >
                         {importingID === item.id
                           ? "Importing..."
@@ -219,25 +216,25 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
                     )}
                     <div className="flex-1">
                       <h4 className="font-semibold">{item.title}</h4>
-                      <p className="text-gray-600">
+                      <p className="text-slate-600 dark:text-slate-300">
                         by {item.artists.map((a: any) => a.name).join(", ")}
                       </p>
                       {item.album?.title && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                           Album: {item.album.title}
                         </p>
                       )}
                       {formatDuration(item.duration) && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                           Duration: {formatDuration(item.duration)}
                         </p>
                       )}
                       {item.trackNumber && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                           Track {item.trackNumber}
                         </p>
                       )}
-                      <p className="text-xs text-blue-600">
+                      <p className="text-xs text-emerald-600">
                         Source: {item.externalSource}
                       </p>
                     </div>
@@ -246,7 +243,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
                         type="button"
                         onClick={() => handleImport("tracks", item.id)}
                         disabled={importingID === item.id}
-                        className="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                        className="btn-secondary disabled:opacity-50"
                       >
                         {importingID === item.id
                           ? "Importing..."
@@ -257,7 +254,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
                 ) : (
                   <div>
                     <h4 className="font-semibold">{item.name}</h4>
-                    <p className="text-xs text-blue-600">
+                    <p className="text-xs text-emerald-600">
                       Source: {item.externalSource}
                     </p>
                   </div>
@@ -269,7 +266,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResults }) => {
       )}
 
       {results && results.length === 0 && (
-        <div className="mt-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
           No results found for "{query}"
         </div>
       )}

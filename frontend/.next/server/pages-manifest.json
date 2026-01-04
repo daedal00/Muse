@@ -2,11 +2,5 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/albums/[id]": "pages/albums/[id].js",
-  "/tracks/[id]": "pages/tracks/[id].js",
-  "/search": "pages/search.js",
-  "/albums": "pages/albums.js",
-  "/auth": "pages/auth.js",
-  "/dashboard": "pages/dashboard.js",
-  "/playlists": "pages/playlists.js"
+  "/": "pages/index.js"
 }

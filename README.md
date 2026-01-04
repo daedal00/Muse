@@ -6,11 +6,13 @@ A music discovery and review platform inspired by Letterboxd, but for music. Rat
 
 Muse allows users to:
 
-- **Rate and review albums** (1-5 stars) with detailed reviews
+- **Rate and review albums and tracks** (1-5 stars) with detailed reviews
 - **Create and share playlists** with other users
 - **Discover new music** through personalized recommendations
 - **Track your musical journey** with a personal "My Muse" profile
 - **Search and explore** artists, albums, and tracks via Spotify integration
+- **Import Spotify stats** (top tracks, saved tracks, playlists) into Muse
+- **Personalize the homepage** with favorites, top tracks, and playlists
 - **Convert playlists** between different streaming services (planned)
 
 ## 🏗️ Current Architecture
@@ -52,6 +54,8 @@ Muse/
 ### ✅ Completed Backend Features
 
 - **Core Data Models**: Users, Artists, Albums, Tracks, Reviews, Playlists
+- **Track Reviews**: Star ratings and optional notes for tracks
+- **Spotify OAuth**: User-authenticated Spotify stats and imports
 - **GraphQL API**: Complete schema with all core types and operations
 - **Database Layer**: Full CRUD operations for all entities
 - **Authentication**: JWT-based user authentication
@@ -121,7 +125,9 @@ Muse/
 - **Albums**: Album metadata, cover art, release information
 - **Tracks**: Individual songs with duration, track numbers
 - **Reviews**: User ratings and reviews for albums
+- **Track Reviews**: User ratings and optional notes for tracks
 - **Playlists**: User-created track collections
+- **Spotify Tokens**: Stored OAuth tokens for user imports
 
 ### Relationships
 

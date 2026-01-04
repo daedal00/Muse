@@ -130,3 +130,60 @@ func (r *Resolver) hydratePlaylist(ctx context.Context, playlist *models.Playlis
 
 	return nil
 }
+
+func (r *Resolver) hydrateTrackReview(
+	ctx context.Context,
+	review *models.TrackReview,
+	userCache map[uuid.UUID]*models.User,
+	trackCache map[uuid.UUID]*models.Track,
+	albumCache map[uuid.UUID]*models.Album,
+	artistCache map[uuid.UUID]*models.Artist,
+) error {
+	if review == nil {
+		return nil
+	}
+
+	if review.User == nil {
+		if userCache != nil {
+			if cached, ok := userCache[review.UserID]; ok {
+				review.User = cached
+			}
+		}
+
+		if review.User == nil {
+			user, err := r.repos.User.GetByID(ctx, review.UserID)
+			if err != nil {
+				return fmt.Errorf("user not found: %w", err)
+			}
+			review.User = user
+			if userCache != nil {
+				userCache[review.UserID] = user
+			}
+		}
+	}
+
+	if review.Track == nil {
+		if trackCache != nil {
+			if cached, ok := trackCache[review.TrackID]; ok {
+				review.Track = cached
+			}
+		}
+
+		if review.Track == nil {
+			track, err := r.repos.Track.GetByID(ctx, review.TrackID)
+			if err != nil {
+				return fmt.Errorf("track not found: %w", err)
+			}
+			review.Track = track
+			if trackCache != nil {
+				trackCache[review.TrackID] = track
+			}
+		}
+	}
+
+	if err := r.hydrateTrack(ctx, review.Track, albumCache, artistCache); err != nil {
+		return err
+	}
+
+	return nil
+}
