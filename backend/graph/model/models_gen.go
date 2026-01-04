@@ -10,14 +10,15 @@ import (
 )
 
 type Album struct {
-	ID          string            `json:"id"`
-	SpotifyID   *string           `json:"spotifyID,omitempty"`
-	Title       string            `json:"title"`
-	Artist      *Artist           `json:"artist"`
-	ReleaseDate *string           `json:"releaseDate,omitempty"`
-	CoverImage  *string           `json:"coverImage,omitempty"`
-	Tracks      *TrackConnection  `json:"tracks"`
-	Reviews     *ReviewConnection `json:"reviews"`
+	ID            string            `json:"id"`
+	SpotifyID     *string           `json:"spotifyID,omitempty"`
+	Title         string            `json:"title"`
+	Artist        *Artist           `json:"artist"`
+	ReleaseDate   *string           `json:"releaseDate,omitempty"`
+	CoverImage    *string           `json:"coverImage,omitempty"`
+	AverageRating *float64          `json:"averageRating,omitempty"`
+	Tracks        *TrackConnection  `json:"tracks"`
+	Reviews       *ReviewConnection `json:"reviews"`
 }
 
 type AlbumConnection struct {
@@ -152,6 +153,13 @@ type TrackConnection struct {
 type TrackEdge struct {
 	Cursor string `json:"cursor"`
 	Node   *Track `json:"node"`
+}
+
+type TrackSearchInput struct {
+	Query  string          `json:"query"`
+	Limit  *int32          `json:"limit,omitempty"`
+	Offset *int32          `json:"offset,omitempty"`
+	Source *ExternalSource `json:"source,omitempty"`
 }
 
 type TrackSearchResult struct {

@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -18,6 +19,233 @@ import (
 	"github.com/google/uuid"
 	spotifyapi "github.com/zmb3/spotify/v2"
 )
+
+// AverageRating is the resolver for the averageRating field.
+func (r *albumResolver) AverageRating(ctx context.Context, obj *model.Album) (*float64, error) {
+	albumID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid album ID")
+	}
+
+	avg, err := r.repos.Review.AverageRatingByAlbumID(ctx, albumID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch average rating: %w", err)
+	}
+
+	return avg, nil
+}
+
+// Tracks is the resolver for the tracks field.
+func (r *albumResolver) Tracks(ctx context.Context, obj *model.Album, first *int32, after *string) (*model.TrackConnection, error) {
+	albumID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid album ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	tracks, err := r.repos.Track.GetByAlbumID(ctx, albumID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tracks: %w", err)
+	}
+
+	hasNextPage := len(tracks) > limit
+	if hasNextPage {
+		tracks = tracks[:limit]
+	}
+
+	dbAlbum, err := r.repos.Album.GetByID(ctx, albumID)
+	if err != nil {
+		return nil, fmt.Errorf("album not found: %w", err)
+	}
+
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateAlbum(ctx, dbAlbum, artistCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate album: %w", err)
+	}
+
+	edges := make([]*model.TrackEdge, len(tracks))
+	for i, track := range tracks {
+		track.Album = dbAlbum
+		edges[i] = &model.TrackEdge{
+			Cursor: r.paginationHelper.EncodeCursor(track.ID.String(), track.CreatedAt, offset+i),
+			Node:   dbTrackToGraphQL(track),
+		}
+	}
+
+	totalCount, err := r.repos.Track.CountByAlbumID(ctx, albumID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count tracks: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.TrackConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
+// Reviews is the resolver for the reviews field.
+func (r *albumResolver) Reviews(ctx context.Context, obj *model.Album, first *int32, after *string) (*model.ReviewConnection, error) {
+	albumID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid album ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	reviews, err := r.repos.Review.GetByAlbumID(ctx, albumID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch reviews: %w", err)
+	}
+
+	hasNextPage := len(reviews) > limit
+	if hasNextPage {
+		reviews = reviews[:limit]
+	}
+
+	dbAlbum, err := r.repos.Album.GetByID(ctx, albumID)
+	if err != nil {
+		return nil, fmt.Errorf("album not found: %w", err)
+	}
+
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateAlbum(ctx, dbAlbum, artistCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate album: %w", err)
+	}
+
+	userIDs := make(map[uuid.UUID]struct{})
+	for _, review := range reviews {
+		userIDs[review.UserID] = struct{}{}
+	}
+
+	var userList []*models.User
+	if len(userIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(userIDs))
+		for id := range userIDs {
+			ids = append(ids, id)
+		}
+		users, err := r.repos.User.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch users: %w", err)
+		}
+		userList = users
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	for _, user := range userList {
+		userCache[user.ID] = user
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{
+		dbAlbum.ID: dbAlbum,
+	}
+
+	edges := make([]*model.ReviewEdge, len(reviews))
+	for i, review := range reviews {
+		review.Album = dbAlbum
+		if err := r.hydrateReview(ctx, review, userCache, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate review: %w", err)
+		}
+		edges[i] = &model.ReviewEdge{
+			Cursor: r.paginationHelper.EncodeCursor(review.ID.String(), review.CreatedAt, offset+i),
+			Node:   dbReviewToGraphQL(review),
+		}
+	}
+
+	totalCount, err := r.repos.Review.CountByAlbumID(ctx, albumID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count reviews: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.ReviewConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
+// Albums is the resolver for the albums field.
+func (r *artistResolver) Albums(ctx context.Context, obj *model.Artist, first *int32, after *string) (*model.AlbumConnection, error) {
+	artistID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid artist ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	albums, err := r.repos.Album.GetByArtistID(ctx, artistID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch albums: %w", err)
+	}
+
+	hasNextPage := len(albums) > limit
+	if hasNextPage {
+		albums = albums[:limit]
+	}
+
+	dbArtist := &models.Artist{
+		ID:        artistID,
+		SpotifyID: obj.SpotifyID,
+		Name:      obj.Name,
+	}
+
+	edges := make([]*model.AlbumEdge, len(albums))
+	for i, album := range albums {
+		album.Artist = dbArtist
+		edges[i] = &model.AlbumEdge{
+			Cursor: r.paginationHelper.EncodeCursor(album.ID.String(), album.CreatedAt, offset+i),
+			Node:   dbAlbumToGraphQL(album),
+		}
+	}
+
+	totalCount, err := r.repos.Album.CountByArtistID(ctx, artistID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count albums: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.AlbumConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, name string, email string, password string) (*model.User, error) {
@@ -162,6 +390,14 @@ func (r *mutationResolver) CreateReview(ctx context.Context, input model.CreateR
 		}
 	}()
 
+	userCache := map[uuid.UUID]*models.User{}
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateReview(ctx, dbReview, userCache, albumCache, artistCache); err != nil {
+		log.Printf("[MUTATION] CreateReview failed - Hydration error: %v", err)
+		return nil, fmt.Errorf("failed to hydrate review: %w", err)
+	}
+
 	// Convert to GraphQL model
 	graphqlReview := dbReviewToGraphQL(dbReview)
 
@@ -224,6 +460,12 @@ func (r *mutationResolver) CreatePlaylist(ctx context.Context, input model.Creat
 	duration := time.Since(start)
 	log.Printf("[MUTATION] CreatePlaylist completed - PlaylistID: %s, Duration: %v", dbPlaylist.ID, duration)
 
+	userCache := map[uuid.UUID]*models.User{}
+	if err := r.hydratePlaylist(ctx, dbPlaylist, userCache); err != nil {
+		log.Printf("[MUTATION] CreatePlaylist failed - Hydration error: %v", err)
+		return nil, fmt.Errorf("failed to hydrate playlist: %w", err)
+	}
+
 	// Convert to GraphQL model and return
 	return dbPlaylistToGraphQL(dbPlaylist), nil
 }
@@ -281,7 +523,173 @@ func (r *mutationResolver) AddTrackToPlaylist(ctx context.Context, playlistID st
 		return nil, fmt.Errorf("failed to fetch updated playlist: %w", err)
 	}
 
+	userCache := map[uuid.UUID]*models.User{}
+	if err := r.hydratePlaylist(ctx, updatedPlaylist, userCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate playlist: %w", err)
+	}
+
 	return dbPlaylistToGraphQL(updatedPlaylist), nil
+}
+
+// ImportAlbum is the resolver for the importAlbum field.
+func (r *mutationResolver) ImportAlbum(ctx context.Context, spotifyAlbumID string) (*model.Album, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] ImportAlbum started - SpotifyAlbumID: %s", spotifyAlbumID)
+
+	dbAlbum, err := r.importAlbumFromSpotify(ctx, spotifyAlbumID)
+	if err != nil {
+		log.Printf("[MUTATION] ImportAlbum failed - %v", err)
+		return nil, err
+	}
+
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateAlbum(ctx, dbAlbum, artistCache); err != nil {
+		log.Printf("[MUTATION] ImportAlbum failed - Hydration error: %v", err)
+		return nil, fmt.Errorf("failed to hydrate album: %w", err)
+	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] ImportAlbum completed - AlbumID: %s, Duration: %v", dbAlbum.ID, duration)
+
+	return dbAlbumToGraphQL(dbAlbum), nil
+}
+
+// ImportArtist is the resolver for the importArtist field.
+func (r *mutationResolver) ImportArtist(ctx context.Context, spotifyArtistID string) (*model.Artist, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] ImportArtist started - SpotifyArtistID: %s", spotifyArtistID)
+
+	dbArtist, err := r.importArtistFromSpotify(ctx, spotifyArtistID)
+	if err != nil {
+		log.Printf("[MUTATION] ImportArtist failed - %v", err)
+		return nil, err
+	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] ImportArtist completed - ArtistID: %s, Duration: %v", dbArtist.ID, duration)
+
+	return dbArtistToGraphQL(dbArtist), nil
+}
+
+// ImportTrack is the resolver for the importTrack field.
+func (r *mutationResolver) ImportTrack(ctx context.Context, spotifyTrackID string) (*model.Track, error) {
+	start := time.Now()
+	log.Printf("[MUTATION] ImportTrack started - SpotifyTrackID: %s", spotifyTrackID)
+
+	dbTrack, err := r.importTrackFromSpotify(ctx, spotifyTrackID)
+	if err != nil {
+		log.Printf("[MUTATION] ImportTrack failed - %v", err)
+		return nil, err
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateTrack(ctx, dbTrack, albumCache, artistCache); err != nil {
+		log.Printf("[MUTATION] ImportTrack failed - Hydration error: %v", err)
+		return nil, fmt.Errorf("failed to hydrate track: %w", err)
+	}
+
+	duration := time.Since(start)
+	log.Printf("[MUTATION] ImportTrack completed - TrackID: %s, Duration: %v", dbTrack.ID, duration)
+
+	return dbTrackToGraphQL(dbTrack), nil
+}
+
+// Tracks is the resolver for the tracks field.
+func (r *playlistResolver) Tracks(ctx context.Context, obj *model.Playlist, first *int32, after *string) (*model.TrackConnection, error) {
+	playlistID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid playlist ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	tracks, err := r.repos.Playlist.GetTracks(ctx, playlistID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch playlist tracks: %w", err)
+	}
+
+	hasNextPage := len(tracks) > limit
+	if hasNextPage {
+		tracks = tracks[:limit]
+	}
+
+	albumIDs := make(map[uuid.UUID]struct{})
+	for _, track := range tracks {
+		albumIDs[track.AlbumID] = struct{}{}
+	}
+
+	var albumList []*models.Album
+	if len(albumIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(albumIDs))
+		for id := range albumIDs {
+			ids = append(ids, id)
+		}
+		albums, err := r.repos.Album.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch albums: %w", err)
+		}
+		albumList = albums
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistIDs := make(map[uuid.UUID]struct{})
+	for _, album := range albumList {
+		albumCache[album.ID] = album
+		artistIDs[album.ArtistID] = struct{}{}
+	}
+
+	var artistList []*models.Artist
+	if len(artistIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(artistIDs))
+		for id := range artistIDs {
+			ids = append(ids, id)
+		}
+		artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch artists: %w", err)
+		}
+		artistList = artists
+	}
+
+	artistCache := map[uuid.UUID]*models.Artist{}
+	for _, artist := range artistList {
+		artistCache[artist.ID] = artist
+	}
+
+	edges := make([]*model.TrackEdge, len(tracks))
+	for i, track := range tracks {
+		if err := r.hydrateTrack(ctx, track, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track: %w", err)
+		}
+		edges[i] = &model.TrackEdge{
+			Cursor: r.paginationHelper.EncodeCursor(track.ID.String(), track.CreatedAt, offset+i),
+			Node:   dbTrackToGraphQL(track),
+		}
+	}
+
+	totalCount, err := r.repos.Playlist.CountTracks(ctx, playlistID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count playlist tracks: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.TrackConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
 }
 
 // Me is the resolver for the me field.
@@ -362,17 +770,46 @@ func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string)
 		return nil, fmt.Errorf("failed to fetch albums: %w", err)
 	}
 
+	artistIDs := make(map[uuid.UUID]struct{})
+	for _, album := range albums {
+		artistIDs[album.ArtistID] = struct{}{}
+	}
+	var artistList []*models.Artist
+	if len(artistIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(artistIDs))
+		for id := range artistIDs {
+			ids = append(ids, id)
+		}
+		artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+		if err != nil {
+			log.Printf("[QUERY] Albums failed - Artists fetch error: %v", err)
+			return nil, fmt.Errorf("failed to fetch artists: %w", err)
+		}
+		artistList = artists
+	}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	for _, artist := range artistList {
+		artistCache[artist.ID] = artist
+	}
+
 	// Convert database models to GraphQL models and create edges
 	edges := make([]*model.AlbumEdge, len(albums))
 	for i, album := range albums {
+		if err := r.hydrateAlbum(ctx, album, artistCache); err != nil {
+			log.Printf("[QUERY] Albums failed - Hydration error: %v", err)
+			return nil, fmt.Errorf("failed to hydrate album: %w", err)
+		}
 		edges[i] = &model.AlbumEdge{
 			Cursor: r.paginationHelper.EncodeCursor(album.ID.String(), album.CreatedAt, i),
 			Node:   dbAlbumToGraphQL(album),
 		}
 	}
 
-	// Get total count for the connection
-	totalCount := len(edges) // Simplified total count using current page size
+	totalCount, err := r.repos.Album.Count(ctx)
+	if err != nil {
+		log.Printf("[QUERY] Albums failed - Count error: %v", err)
+		return nil, fmt.Errorf("failed to count albums: %w", err)
+	}
 
 	// Create page info
 	var endCursor *string
@@ -384,7 +821,7 @@ func (r *queryResolver) Albums(ctx context.Context, first *int32, after *string)
 	log.Printf("[QUERY] Albums completed - Count: %d, HasNext: %t, Duration: %v", len(albums), hasNextPage, duration)
 
 	return &model.AlbumConnection{
-		TotalCount: safeLenToInt32(totalCount),
+		TotalCount: safeIntToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -410,6 +847,12 @@ func (r *queryResolver) Album(ctx context.Context, id string) (*model.Album, err
 		return nil, fmt.Errorf("album not found: %w", err)
 	}
 
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateAlbum(ctx, dbAlbum, artistCache); err != nil {
+		log.Printf("[QUERY] Album failed - Hydration error: %v", err)
+		return nil, fmt.Errorf("failed to hydrate album: %w", err)
+	}
+
 	duration := time.Since(start)
 	log.Printf("[QUERY] Album completed - AlbumID: %s, Duration: %v", albumID, duration)
 
@@ -430,17 +873,65 @@ func (r *queryResolver) Tracks(ctx context.Context, first *int32, after *string)
 		return nil, fmt.Errorf("failed to fetch tracks: %w", err)
 	}
 
+	albumIDs := make(map[uuid.UUID]struct{})
+	for _, track := range tracks {
+		albumIDs[track.AlbumID] = struct{}{}
+	}
+
+	var albumList []*models.Album
+	if len(albumIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(albumIDs))
+		for id := range albumIDs {
+			ids = append(ids, id)
+		}
+		albums, err := r.repos.Album.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch albums: %w", err)
+		}
+		albumList = albums
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistIDs := make(map[uuid.UUID]struct{})
+	for _, album := range albumList {
+		albumCache[album.ID] = album
+		artistIDs[album.ArtistID] = struct{}{}
+	}
+
+	var artistList []*models.Artist
+	if len(artistIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(artistIDs))
+		for id := range artistIDs {
+			ids = append(ids, id)
+		}
+		artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch artists: %w", err)
+		}
+		artistList = artists
+	}
+
+	artistCache := map[uuid.UUID]*models.Artist{}
+	for _, artist := range artistList {
+		artistCache[artist.ID] = artist
+	}
+
 	// Convert database models to GraphQL models and create edges
 	edges := make([]*model.TrackEdge, len(tracks))
 	for i, track := range tracks {
+		if err := r.hydrateTrack(ctx, track, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track: %w", err)
+		}
 		edges[i] = &model.TrackEdge{
 			Cursor: r.paginationHelper.EncodeCursor(track.ID.String(), track.CreatedAt, i),
 			Node:   dbTrackToGraphQL(track),
 		}
 	}
 
-	// Get total count for the connection
-	totalCount := len(edges) // Simplified total count using current page size
+	totalCount, err := r.repos.Track.Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count tracks: %w", err)
+	}
 
 	// Create page info
 	var endCursor *string
@@ -449,7 +940,7 @@ func (r *queryResolver) Tracks(ctx context.Context, first *int32, after *string)
 	}
 
 	return &model.TrackConnection{
-		TotalCount: safeLenToInt32(totalCount),
+		TotalCount: safeIntToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -470,6 +961,12 @@ func (r *queryResolver) Track(ctx context.Context, id string) (*model.Track, err
 		return nil, fmt.Errorf("track not found: %w", err)
 	}
 
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateTrack(ctx, dbTrack, albumCache, artistCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate track: %w", err)
+	}
+
 	return dbTrackToGraphQL(dbTrack), nil
 }
 
@@ -487,17 +984,45 @@ func (r *queryResolver) Playlists(ctx context.Context, first *int32, after *stri
 		return nil, fmt.Errorf("failed to fetch playlists: %w", err)
 	}
 
+	userIDs := make(map[uuid.UUID]struct{})
+	for _, playlist := range playlists {
+		userIDs[playlist.CreatorID] = struct{}{}
+	}
+
+	var userList []*models.User
+	if len(userIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(userIDs))
+		for id := range userIDs {
+			ids = append(ids, id)
+		}
+		users, err := r.repos.User.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch users: %w", err)
+		}
+		userList = users
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	for _, user := range userList {
+		userCache[user.ID] = user
+	}
+
 	// Convert database models to GraphQL models and create edges
 	edges := make([]*model.PlaylistEdge, len(playlists))
 	for i, playlist := range playlists {
+		if err := r.hydratePlaylist(ctx, playlist, userCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate playlist: %w", err)
+		}
 		edges[i] = &model.PlaylistEdge{
 			Cursor: r.paginationHelper.EncodeCursor(playlist.ID.String(), playlist.CreatedAt, i),
 			Node:   dbPlaylistToGraphQL(playlist),
 		}
 	}
 
-	// Get total count for the connection
-	totalCount := len(edges) // Simplified total count using current page size
+	totalCount, err := r.repos.Playlist.Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count playlists: %w", err)
+	}
 
 	// Create page info
 	var endCursor *string
@@ -506,7 +1031,7 @@ func (r *queryResolver) Playlists(ctx context.Context, first *int32, after *stri
 	}
 
 	return &model.PlaylistConnection{
-		TotalCount: safeLenToInt32(totalCount),
+		TotalCount: safeIntToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -527,6 +1052,11 @@ func (r *queryResolver) Playlist(ctx context.Context, id string) (*model.Playlis
 		return nil, fmt.Errorf("playlist not found: %w", err)
 	}
 
+	userCache := map[uuid.UUID]*models.User{}
+	if err := r.hydratePlaylist(ctx, dbPlaylist, userCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate playlist: %w", err)
+	}
+
 	return dbPlaylistToGraphQL(dbPlaylist), nil
 }
 
@@ -544,17 +1074,85 @@ func (r *queryResolver) Reviews(ctx context.Context, first *int32, after *string
 		return nil, fmt.Errorf("failed to fetch reviews: %w", err)
 	}
 
+	userIDs := make(map[uuid.UUID]struct{})
+	albumIDs := make(map[uuid.UUID]struct{})
+	for _, review := range reviews {
+		userIDs[review.UserID] = struct{}{}
+		albumIDs[review.AlbumID] = struct{}{}
+	}
+
+	var userList []*models.User
+	if len(userIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(userIDs))
+		for id := range userIDs {
+			ids = append(ids, id)
+		}
+		users, err := r.repos.User.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch users: %w", err)
+		}
+		userList = users
+	}
+
+	var albumList []*models.Album
+	if len(albumIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(albumIDs))
+		for id := range albumIDs {
+			ids = append(ids, id)
+		}
+		albums, err := r.repos.Album.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch albums: %w", err)
+		}
+		albumList = albums
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	for _, user := range userList {
+		userCache[user.ID] = user
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistIDs := make(map[uuid.UUID]struct{})
+	for _, album := range albumList {
+		albumCache[album.ID] = album
+		artistIDs[album.ArtistID] = struct{}{}
+	}
+
+	var artistList []*models.Artist
+	if len(artistIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(artistIDs))
+		for id := range artistIDs {
+			ids = append(ids, id)
+		}
+		artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch artists: %w", err)
+		}
+		artistList = artists
+	}
+
+	artistCache := map[uuid.UUID]*models.Artist{}
+	for _, artist := range artistList {
+		artistCache[artist.ID] = artist
+	}
+
 	// Convert database models to GraphQL models and create edges
 	edges := make([]*model.ReviewEdge, len(reviews))
 	for i, review := range reviews {
+		if err := r.hydrateReview(ctx, review, userCache, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate review: %w", err)
+		}
 		edges[i] = &model.ReviewEdge{
 			Cursor: r.paginationHelper.EncodeCursor(review.ID.String(), review.CreatedAt, i),
 			Node:   dbReviewToGraphQL(review),
 		}
 	}
 
-	// Get total count for the connection
-	totalCount := len(edges) // Simplified total count using current page size
+	totalCount, err := r.repos.Review.Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count reviews: %w", err)
+	}
 
 	// Create page info
 	var endCursor *string
@@ -563,7 +1161,7 @@ func (r *queryResolver) Reviews(ctx context.Context, first *int32, after *string
 	}
 
 	return &model.ReviewConnection{
-		TotalCount: safeLenToInt32(totalCount),
+		TotalCount: safeIntToInt32(totalCount),
 		Edges:      edges,
 		PageInfo: &model.PageInfo{
 			EndCursor:   endCursor,
@@ -582,6 +1180,13 @@ func (r *queryResolver) Review(ctx context.Context, id string) (*model.Review, e
 	dbReview, err := r.repos.Review.GetByID(ctx, reviewID)
 	if err != nil {
 		return nil, fmt.Errorf("review not found: %w", err)
+	}
+
+	userCache := map[uuid.UUID]*models.User{}
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	if err := r.hydrateReview(ctx, dbReview, userCache, albumCache, artistCache); err != nil {
+		return nil, fmt.Errorf("failed to hydrate review: %w", err)
 	}
 
 	return dbReviewToGraphQL(dbReview), nil
@@ -641,7 +1246,11 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 	if input.Limit != nil {
 		limit = int(*input.Limit)
 	}
-	log.Printf("[QUERY] SearchAlbums started - Query: '%s', Limit: %d, Source: %s", input.Query, limit, input.Source)
+	offset := 0
+	if input.Offset != nil {
+		offset = int(*input.Offset)
+	}
+	log.Printf("[QUERY] SearchAlbums started - Query: '%s', Limit: %d, Offset: %d, Source: %s", input.Query, limit, offset, input.Source)
 
 	if r.spotifyServices == nil {
 		log.Printf("[QUERY] SearchAlbums failed - Spotify service not available")
@@ -649,15 +1258,18 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 	}
 
 	// Check cache first
-	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
+	cacheKey := fmt.Sprintf("%s:%d:%d", input.Query, limit, offset)
 	log.Printf("[CACHE] Checking cache for albums - Key: %s", cacheKey)
 
 	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "albums"); err == nil && cachedData != nil {
 		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
-			if results, ok := searchData.Results.([]*model.AlbumSearchResult); ok {
-				duration := time.Since(start)
-				log.Printf("[QUERY] SearchAlbums completed (CACHE HIT) - Query: '%s', Count: %d, Duration: %v", input.Query, len(results), duration)
-				return results, nil
+			var results []*model.AlbumSearchResult
+			if len(searchData.Results) > 0 {
+				if err := json.Unmarshal(searchData.Results, &results); err == nil {
+					duration := time.Since(start)
+					log.Printf("[QUERY] SearchAlbums completed (CACHE HIT) - Query: '%s', Count: %d, Duration: %v", input.Query, len(results), duration)
+					return results, nil
+				}
 			}
 		}
 	}
@@ -666,7 +1278,8 @@ func (r *queryResolver) SearchAlbums(ctx context.Context, input model.AlbumSearc
 	// Use the new Spotify client to search for albums
 	log.Printf("[SPOTIFY] Calling Spotify API for albums - Query: '%s', Limit: %d", input.Query, limit)
 	results, err := r.spotifyServices.Search.SearchAlbums(ctx, input.Query,
-		spotifyapi.Limit(limit))
+		spotifyapi.Limit(limit),
+		spotifyapi.Offset(offset))
 	if err != nil {
 		log.Printf("[SPOTIFY] SearchAlbums failed - API error: %v", err)
 		return nil, fmt.Errorf("failed to search albums: %w", err)
@@ -731,7 +1344,11 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	if input.Limit != nil {
 		limit = int(*input.Limit)
 	}
-	log.Printf("[QUERY] SearchArtists started - Query: '%s', Limit: %d, Source: %s", input.Query, limit, input.Source)
+	offset := 0
+	if input.Offset != nil {
+		offset = int(*input.Offset)
+	}
+	log.Printf("[QUERY] SearchArtists started - Query: '%s', Limit: %d, Offset: %d, Source: %s", input.Query, limit, offset, input.Source)
 
 	if r.spotifyServices == nil {
 		log.Printf("[QUERY] SearchArtists failed - Spotify service not available")
@@ -739,15 +1356,18 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	}
 
 	// Check cache first
-	cacheKey := fmt.Sprintf("%s:%d", input.Query, limit)
+	cacheKey := fmt.Sprintf("%s:%d:%d", input.Query, limit, offset)
 	log.Printf("[CACHE] Checking cache for artists - Key: %s", cacheKey)
 
 	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "artists"); err == nil && cachedData != nil {
 		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
-			if results, ok := searchData.Results.([]*model.ArtistSearchResult); ok {
-				duration := time.Since(start)
-				log.Printf("[QUERY] SearchArtists completed (CACHE HIT) - Query: '%s', Count: %d, Duration: %v", input.Query, len(results), duration)
-				return results, nil
+			var results []*model.ArtistSearchResult
+			if len(searchData.Results) > 0 {
+				if err := json.Unmarshal(searchData.Results, &results); err == nil {
+					duration := time.Since(start)
+					log.Printf("[QUERY] SearchArtists completed (CACHE HIT) - Query: '%s', Count: %d, Duration: %v", input.Query, len(results), duration)
+					return results, nil
+				}
 			}
 		}
 	}
@@ -756,7 +1376,8 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	// Use the new Spotify client to search for artists
 	log.Printf("[SPOTIFY] Calling Spotify API for artists - Query: '%s', Limit: %d", input.Query, limit)
 	results, err := r.spotifyServices.Search.SearchArtists(ctx, input.Query,
-		spotifyapi.Limit(limit))
+		spotifyapi.Limit(limit),
+		spotifyapi.Offset(offset))
 	if err != nil {
 		log.Printf("[SPOTIFY] SearchArtists failed - API error: %v", err)
 		return nil, fmt.Errorf("failed to search artists: %w", err)
@@ -789,6 +1410,128 @@ func (r *queryResolver) SearchArtists(ctx context.Context, input model.ArtistSea
 	return artistResults, nil
 }
 
+// SearchTracks is the resolver for the searchTracks field.
+func (r *queryResolver) SearchTracks(ctx context.Context, input model.TrackSearchInput) ([]*model.TrackSearchResult, error) {
+	start := time.Now()
+	limit := 20
+	if input.Limit != nil {
+		limit = int(*input.Limit)
+	}
+	offset := 0
+	if input.Offset != nil {
+		offset = int(*input.Offset)
+	}
+	log.Printf("[QUERY] SearchTracks started - Query: '%s', Limit: %d, Offset: %d, Source: %s", input.Query, limit, offset, input.Source)
+
+	if r.spotifyServices == nil {
+		log.Printf("[QUERY] SearchTracks failed - Spotify service not available")
+		return nil, fmt.Errorf("spotify service not available")
+	}
+
+	cacheKey := fmt.Sprintf("%s:%d:%d", input.Query, limit, offset)
+	log.Printf("[CACHE] Checking cache for tracks - Key: %s", cacheKey)
+
+	if cachedData, err := r.repos.MusicCache.GetSearchResults(ctx, cacheKey, "tracks"); err == nil && cachedData != nil {
+		if searchData, ok := cachedData.(*redisrepo.SearchCacheData); ok {
+			var results []*model.TrackSearchResult
+			if len(searchData.Results) > 0 {
+				if err := json.Unmarshal(searchData.Results, &results); err == nil {
+					duration := time.Since(start)
+					log.Printf("[QUERY] SearchTracks completed (CACHE HIT) - Query: '%s', Count: %d, Duration: %v", input.Query, len(results), duration)
+					return results, nil
+				}
+			}
+		}
+	}
+	log.Printf("[CACHE] Cache miss for tracks - Key: %s", cacheKey)
+
+	log.Printf("[SPOTIFY] Calling Spotify API for tracks - Query: '%s', Limit: %d", input.Query, limit)
+	results, err := r.spotifyServices.Search.SearchTracks(ctx, input.Query,
+		spotifyapi.Limit(limit),
+		spotifyapi.Offset(offset))
+	if err != nil {
+		log.Printf("[SPOTIFY] SearchTracks failed - API error: %v", err)
+		return nil, fmt.Errorf("failed to search tracks: %w", err)
+	}
+
+	var trackResults []*model.TrackSearchResult
+	if results.Tracks != nil {
+		for _, track := range results.Tracks.Tracks {
+			artists := make([]*model.ArtistSearchResult, 0, len(track.Artists))
+			for _, artist := range track.Artists {
+				artists = append(artists, &model.ArtistSearchResult{
+					ID:             string(artist.ID),
+					Name:           artist.Name,
+					ExternalSource: model.ExternalSourceSpotify,
+				})
+			}
+
+			var albumResult *model.AlbumSearchResult
+			if track.Album.ID != "" {
+				albumArtists := make([]*model.ArtistSearchResult, 0, len(track.Album.Artists))
+				for _, artist := range track.Album.Artists {
+					albumArtists = append(albumArtists, &model.ArtistSearchResult{
+						ID:             string(artist.ID),
+						Name:           artist.Name,
+						ExternalSource: model.ExternalSourceSpotify,
+					})
+				}
+
+				var releaseDate *string
+				if track.Album.ReleaseDate != "" {
+					releaseDate = &track.Album.ReleaseDate
+				}
+
+				var coverImage *string
+				if len(track.Album.Images) > 0 {
+					coverImage = &track.Album.Images[0].URL
+				}
+
+				albumResult = &model.AlbumSearchResult{
+					ID:             string(track.Album.ID),
+					Title:          track.Album.Name,
+					Artist:         albumArtists,
+					ReleaseDate:    releaseDate,
+					CoverImage:     coverImage,
+					ExternalSource: model.ExternalSourceSpotify,
+				}
+			}
+
+			var durationSeconds *int32
+			if track.Duration > 0 {
+				val := safeIntToInt32(int(track.Duration) / 1000)
+				durationSeconds = &val
+			}
+
+			var trackNumber *int32
+			if track.TrackNumber > 0 {
+				val := safeIntToInt32(int(track.TrackNumber))
+				trackNumber = &val
+			}
+
+			trackResults = append(trackResults, &model.TrackSearchResult{
+				ID:             string(track.ID),
+				Title:          track.Name,
+				Duration:       durationSeconds,
+				TrackNumber:    trackNumber,
+				Album:          albumResult,
+				Artists:        artists,
+				ExternalSource: model.ExternalSourceSpotify,
+			})
+		}
+	}
+
+	log.Printf("[CACHE] Caching track search results - Key: %s, Count: %d", cacheKey, len(trackResults))
+	if err := r.repos.MusicCache.SetSearchResults(ctx, cacheKey, "tracks", trackResults); err != nil {
+		log.Printf("[CACHE] Warning: Failed to cache track search results: %v", err)
+	}
+
+	duration := time.Since(start)
+	log.Printf("[QUERY] SearchTracks completed (SPOTIFY API) - Query: '%s', Count: %d, Duration: %v", input.Query, len(trackResults), duration)
+
+	return trackResults, nil
+}
+
 // ReviewAdded is the resolver for the reviewAdded field.
 func (r *subscriptionResolver) ReviewAdded(ctx context.Context, albumID string) (<-chan *model.Review, error) {
 	// Subscribe to review updates for the specified album using subscription manager
@@ -800,8 +1543,186 @@ func (r *subscriptionResolver) ReviewAdded(ctx context.Context, albumID string) 
 	return reviewChan, nil
 }
 
+// Playlists is the resolver for the playlists field.
+func (r *userResolver) Playlists(ctx context.Context, obj *model.User, first *int32, after *string) (*model.PlaylistConnection, error) {
+	userID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	playlists, err := r.repos.Playlist.GetByCreatorID(ctx, userID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch playlists: %w", err)
+	}
+
+	hasNextPage := len(playlists) > limit
+	if hasNextPage {
+		playlists = playlists[:limit]
+	}
+
+	dbUser := &models.User{
+		ID:     userID,
+		Name:   obj.Name,
+		Email:  obj.Email,
+		Bio:    obj.Bio,
+		Avatar: obj.Avatar,
+	}
+
+	edges := make([]*model.PlaylistEdge, len(playlists))
+	for i, playlist := range playlists {
+		playlist.Creator = dbUser
+		edges[i] = &model.PlaylistEdge{
+			Cursor: r.paginationHelper.EncodeCursor(playlist.ID.String(), playlist.CreatedAt, offset+i),
+			Node:   dbPlaylistToGraphQL(playlist),
+		}
+	}
+
+	totalCount, err := r.repos.Playlist.CountByCreatorID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count playlists: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.PlaylistConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
+// Reviews is the resolver for the reviews field.
+func (r *userResolver) Reviews(ctx context.Context, obj *model.User, first *int32, after *string) (*model.ReviewConnection, error) {
+	userID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
+	limit := resolveLimit(first, 10)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	reviews, err := r.repos.Review.GetByUserID(ctx, userID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch reviews: %w", err)
+	}
+
+	hasNextPage := len(reviews) > limit
+	if hasNextPage {
+		reviews = reviews[:limit]
+	}
+
+	dbUser := &models.User{
+		ID:     userID,
+		Name:   obj.Name,
+		Email:  obj.Email,
+		Bio:    obj.Bio,
+		Avatar: obj.Avatar,
+	}
+
+	albumIDs := make(map[uuid.UUID]struct{})
+	for _, review := range reviews {
+		albumIDs[review.AlbumID] = struct{}{}
+	}
+
+	var albumList []*models.Album
+	if len(albumIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(albumIDs))
+		for id := range albumIDs {
+			ids = append(ids, id)
+		}
+		albums, err := r.repos.Album.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch albums: %w", err)
+		}
+		albumList = albums
+	}
+
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistIDs := make(map[uuid.UUID]struct{})
+	for _, album := range albumList {
+		albumCache[album.ID] = album
+		artistIDs[album.ArtistID] = struct{}{}
+	}
+
+	var artistList []*models.Artist
+	if len(artistIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(artistIDs))
+		for id := range artistIDs {
+			ids = append(ids, id)
+		}
+		artists, err := r.repos.Artist.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch artists: %w", err)
+		}
+		artistList = artists
+	}
+
+	artistCache := map[uuid.UUID]*models.Artist{}
+	for _, artist := range artistList {
+		artistCache[artist.ID] = artist
+	}
+
+	userCache := map[uuid.UUID]*models.User{
+		userID: dbUser,
+	}
+
+	edges := make([]*model.ReviewEdge, len(reviews))
+	for i, review := range reviews {
+		if err := r.hydrateReview(ctx, review, userCache, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate review: %w", err)
+		}
+		edges[i] = &model.ReviewEdge{
+			Cursor: r.paginationHelper.EncodeCursor(review.ID.String(), review.CreatedAt, offset+i),
+			Node:   dbReviewToGraphQL(review),
+		}
+	}
+
+	totalCount, err := r.repos.Review.CountByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count reviews: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.ReviewConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
+// Album returns AlbumResolver implementation.
+func (r *Resolver) Album() AlbumResolver { return &albumResolver{r} }
+
+// Artist returns ArtistResolver implementation.
+func (r *Resolver) Artist() ArtistResolver { return &artistResolver{r} }
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+
+// Playlist returns PlaylistResolver implementation.
+func (r *Resolver) Playlist() PlaylistResolver { return &playlistResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
@@ -809,6 +1730,13 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
+// User returns UserResolver implementation.
+func (r *Resolver) User() UserResolver { return &userResolver{r} }
+
+type albumResolver struct{ *Resolver }
+type artistResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
+type playlistResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }

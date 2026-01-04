@@ -1,9 +1,12 @@
 import React, { useState } from "react";
-import { useMutation } from "@apollo/client";
+import { useApolloClient, useMutation } from "@apollo/client";
+import { useRouter } from "next/router";
 import { CREATE_USER, LOGIN } from "../lib/graphql/mutations";
 import { GET_ME } from "../lib/graphql/queries";
 
 const AuthForm: React.FC = () => {
+  const router = useRouter();
+  const apolloClient = useApolloClient();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
@@ -34,7 +37,8 @@ const AuthForm: React.FC = () => {
 
         if (data?.login) {
           localStorage.setItem("auth-token", data.login);
-          window.location.reload();
+          await apolloClient.resetStore();
+          await router.push("/dashboard");
         }
       } else {
         await createUser({
@@ -55,7 +59,8 @@ const AuthForm: React.FC = () => {
 
         if (data?.login) {
           localStorage.setItem("auth-token", data.login);
-          window.location.reload();
+          await apolloClient.resetStore();
+          await router.push("/dashboard");
         }
       }
     } catch (err) {

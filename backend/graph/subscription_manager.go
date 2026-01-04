@@ -26,7 +26,9 @@ func NewSubscriptionManager(redisClient *database.RedisClient) *SubscriptionMana
 	}
 
 	// Start listening to Redis pub/sub
-	go sm.listenToRedis()
+	if sm.redis != nil {
+		go sm.listenToRedis()
+	}
 
 	return sm
 }
@@ -81,6 +83,11 @@ func (sm *SubscriptionManager) PublishReview(ctx context.Context, review *model.
 
 	albumID := review.Album.ID
 
+	if sm.redis == nil {
+		sm.distributeReview(albumID, review)
+		return nil
+	}
+
 	// Serialize review
 	reviewData, err := json.Marshal(review)
 	if err != nil {
@@ -94,6 +101,10 @@ func (sm *SubscriptionManager) PublishReview(ctx context.Context, review *model.
 
 // listenToRedis listens to Redis pub/sub for review updates
 func (sm *SubscriptionManager) listenToRedis() {
+	if sm.redis == nil {
+		return
+	}
+
 	ctx := context.Background()
 
 	// Subscribe to all review channels using pattern

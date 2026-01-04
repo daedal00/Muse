@@ -58,6 +58,41 @@ func (r *artistRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.A
 	return artist, nil
 }
 
+func (r *artistRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Artist, error) {
+	if len(ids) == 0 {
+		return []*models.Artist{}, nil
+	}
+
+	query := `
+		SELECT id, spotify_id, name, created_at, updated_at
+		FROM artists
+		WHERE id = ANY($1)
+	`
+
+	rows, err := r.db.Pool.Query(ctx, query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get artists: %w", err)
+	}
+	defer rows.Close()
+
+	var artists []*models.Artist
+	for rows.Next() {
+		artist := &models.Artist{}
+		if err := rows.Scan(
+			&artist.ID, &artist.SpotifyID, &artist.Name, &artist.CreatedAt, &artist.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan artist: %w", err)
+		}
+		artists = append(artists, artist)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating artists: %w", err)
+	}
+
+	return artists, nil
+}
+
 func (r *artistRepository) GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Artist, error) {
 	query := `
 		SELECT id, spotify_id, name, created_at, updated_at

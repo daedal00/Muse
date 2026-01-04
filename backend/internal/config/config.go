@@ -100,12 +100,6 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.SpotifyClientID == "" {
-		return fmt.Errorf("SPOTIFY_CLIENT_ID is required")
-	}
-	if c.SpotifyClientSecret == "" {
-		return fmt.Errorf("SPOTIFY_CLIENT_SECRET is required")
-	}
 	if c.DatabaseURL == "" && c.DBPassword == "" {
 		return fmt.Errorf("either DATABASE_URL or DB_PASSWORD must be provided")
 	}

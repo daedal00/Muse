@@ -36,12 +36,21 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 	}
 	log.Printf("✅ Connected to PostgreSQL database")
 
-	// Initialize Redis client
-	redisClient, err := database.NewRedisConnection(cfg.RedisURL)
-	if err != nil {
-		return nil, err
+	// Initialize Redis client (optional)
+	var redisClient *database.RedisClient
+	sessionRepo := redisrepo.NewNoopSessionRepository()
+	musicCacheRepo := redisrepo.NewNoopMusicCacheRepository()
+	if cfg.RedisURL != "" {
+		client, err := database.NewRedisConnection(cfg.RedisURL)
+		if err != nil {
+			log.Printf("⚠️  Redis unavailable, continuing without cache: %v", err)
+		} else {
+			redisClient = client
+			sessionRepo = redisrepo.NewSessionRepository(redisClient)
+			musicCacheRepo = redisrepo.NewMusicCacheRepository(redisClient)
+			log.Printf("✅ Connected to Redis at %s", cfg.RedisURL)
+		}
 	}
-	log.Printf("✅ Connected to Redis at %s", cfg.RedisURL)
 
 	// Initialize repositories (using Redis for sessions, PostgreSQL for others)
 	repos := &repository.Repositories{
@@ -51,8 +60,8 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 		Track:      postgres.NewTrackRepository(postgresDB),
 		Review:     postgres.NewReviewRepository(postgresDB),
 		Playlist:   postgres.NewPlaylistRepository(postgresDB),
-		Session:    redisrepo.NewSessionRepository(redisClient),    // Using Redis for sessions
-		MusicCache: redisrepo.NewMusicCacheRepository(redisClient), // Using Redis for music caching
+		Session:    sessionRepo,
+		MusicCache: musicCacheRepo,
 	}
 
 	// Initialize Spotify services (optional)

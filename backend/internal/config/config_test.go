@@ -43,13 +43,9 @@ func TestLoadConfig(t *testing.T) {
 
 func TestConfigDefaults(t *testing.T) {
 	// Set required environment variables
-	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
-	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
 
 	defer func() {
-		os.Unsetenv("SPOTIFY_CLIENT_ID")
-		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
 		os.Unsetenv("DATABASE_URL")
 	}()
 
@@ -83,16 +79,12 @@ func BenchmarkLoadConfig(b *testing.B) {
 	os.Setenv("PORT", "8080")
 	os.Setenv("ENVIRONMENT", "test")
 	os.Setenv("JWT_SECRET", "test-secret")
-	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
-	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
 
 	defer func() {
 		os.Unsetenv("PORT")
 		os.Unsetenv("ENVIRONMENT")
 		os.Unsetenv("JWT_SECRET")
-		os.Unsetenv("SPOTIFY_CLIENT_ID")
-		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
 		os.Unsetenv("DATABASE_URL")
 	}()
 

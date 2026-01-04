@@ -39,6 +39,35 @@ export const SEARCH_ARTISTS = gql`
   }
 `;
 
+export const SEARCH_TRACKS = gql`
+  query SearchTracks($input: TrackSearchInput!) {
+    searchTracks(input: $input) {
+      id
+      title
+      duration
+      trackNumber
+      album {
+        id
+        title
+        releaseDate
+        coverImage
+        artist {
+          id
+          name
+          externalSource
+        }
+        externalSource
+      }
+      artists {
+        id
+        name
+        externalSource
+      }
+      externalSource
+    }
+  }
+`;
+
 export const GET_ALBUMS = gql`
   query GetAlbums($first: Int, $after: String) {
     albums(first: $first, after: $after) {
@@ -59,6 +88,86 @@ export const GET_ALBUMS = gql`
       pageInfo {
         hasNextPage
         endCursor
+      }
+    }
+  }
+`;
+
+export const GET_ALBUM = gql`
+  query GetAlbum(
+    $id: ID!
+    $tracksFirst: Int
+    $tracksAfter: String
+    $reviewsFirst: Int
+    $reviewsAfter: String
+  ) {
+    album(id: $id) {
+      id
+      title
+      releaseDate
+      coverImage
+      averageRating
+      artist {
+        id
+        name
+      }
+      tracks(first: $tracksFirst, after: $tracksAfter) {
+        totalCount
+        edges {
+          cursor
+          node {
+            id
+            title
+            duration
+            trackNumber
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+      reviews(first: $reviewsFirst, after: $reviewsAfter) {
+        totalCount
+        edges {
+          cursor
+          node {
+            id
+            rating
+            reviewText
+            createdAt
+            user {
+              id
+              name
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+export const GET_TRACK = gql`
+  query GetTrack($id: ID!) {
+    track(id: $id) {
+      id
+      title
+      duration
+      trackNumber
+      album {
+        id
+        title
+        releaseDate
+        coverImage
+        averageRating
+        artist {
+          id
+          name
+        }
       }
     }
   }

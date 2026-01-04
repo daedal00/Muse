@@ -4,10 +4,11 @@ This is a simple Next.js frontend created to test your Muse backend GraphQL API.
 
 ## Features
 
-- 🔍 **Search**: Test Spotify API integration for albums and artists
+- 🔍 **Search**: Test Spotify API integration for albums, artists, and tracks
 - 🔐 **Authentication**: User registration and login functionality
 - 💿 **Albums**: Browse stored albums with pagination
-- ⭐ **Reviews**: View and create album reviews
+- 📄 **Details**: Album and track detail pages with metadata and ratings (track pages show album rating)
+- ⭐ **Reviews**: Browse album reviews (creation via GraphQL mutation)
 - 🎵 **Playlists**: Browse user playlists
 - 📊 **GraphQL Integration**: Full Apollo Client setup with error handling
 
@@ -18,7 +19,7 @@ This is a simple Next.js frontend created to test your Muse backend GraphQL API.
 - Ensure your backend is properly configured with:
   - PostgreSQL database
   - Redis (optional)
-  - Spotify API credentials
+  - Spotify API credentials (optional for search)
 
 ## Installation
 
@@ -66,8 +67,9 @@ Your backend should be accessible at `http://localhost:8080`
 ### 3. Test Search Functionality
 
 1. Visit `/search`
-2. Search for albums or artists (e.g., "Taylor Swift", "The Beatles")
-3. Verify that results are returned from Spotify
+2. Search for albums, artists, or tracks (e.g., "Taylor Swift", "The Beatles")
+3. Use "Import & View" to persist results and open detail pages
+4. Verify that results are returned from Spotify
 
 ### 4. Test Data Browsing
 
@@ -75,7 +77,13 @@ Your backend should be accessible at `http://localhost:8080`
 2. These may be empty initially - that's expected!
 3. Check for proper error handling and empty states
 
-### 5. Test GraphQL Playground
+### 5. Test Detail Pages
+
+1. Import an album or track from `/search`
+2. Open `/albums/[id]` or `/tracks/[id]` to see metadata and ratings
+3. Check that track lists and reviews render correctly
+
+### 6. Test GraphQL Playground
 
 - Visit `http://localhost:8080` for the GraphQL playground
 - Try running queries directly
@@ -83,9 +91,12 @@ Your backend should be accessible at `http://localhost:8080`
 ## Available Pages
 
 - `/` - Homepage with overview and backend connection status
-- `/search` - Search albums and artists using Spotify API
+- `/dashboard` - Logged-in dashboard summary
+- `/search` - Search albums, artists, and tracks using Spotify API
 - `/auth` - User registration and login
 - `/albums` - Browse stored albums with pagination
+- `/albums/[id]` - Album detail view with tracks and reviews
+- `/tracks/[id]` - Track detail view with album rating
 - `/reviews` - View album reviews
 - `/playlists` - Browse user playlists
 
@@ -98,6 +109,9 @@ The frontend includes pre-built GraphQL operations for:
 - `me` - Get current user information
 - `searchAlbums` - Search albums via Spotify
 - `searchArtists` - Search artists via Spotify
+- `searchTracks` - Search tracks via Spotify
+- `album` - Fetch album detail with tracks and reviews
+- `track` - Fetch track detail
 - `albums` - Get stored albums with pagination
 - `reviews` - Get reviews with pagination
 - `playlists` - Get playlists with pagination
@@ -108,6 +122,9 @@ The frontend includes pre-built GraphQL operations for:
 - `login` - Authenticate user
 - `createReview` - Create album review
 - `createPlaylist` - Create new playlist
+- `importAlbum` - Persist album (and tracks) from Spotify
+- `importArtist` - Persist artist from Spotify
+- `importTrack` - Persist track from Spotify
 
 ## Development Notes
 
@@ -146,8 +163,17 @@ The frontend includes pre-built GraphQL operations for:
 ### Empty Data
 
 - Initially, albums, reviews, and playlists will be empty
-- Use the search functionality to populate data
-- Create user accounts to test reviews and playlists
+- Search results are not persisted to PostgreSQL yet (import flow still needed)
+- Use GraphQL mutations (including `importAlbum`/`importTrack`) or seed data to populate albums
+
+### Database Migrations
+
+If you see errors like `relation "albums" does not exist`, run backend migrations:
+
+```bash
+cd backend
+go run cmd/migrate/main.go up
+```
 
 ## Testing Checklist
 

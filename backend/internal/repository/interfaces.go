@@ -12,6 +12,7 @@ import (
 type UserRepository interface {
 	Create(ctx context.Context, user *models.User) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
 	Update(ctx context.Context, user *models.User) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -21,6 +22,7 @@ type UserRepository interface {
 type ArtistRepository interface {
 	Create(ctx context.Context, artist *models.Artist) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Artist, error)
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Artist, error)
 	GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Artist, error)
 	Update(ctx context.Context, artist *models.Artist) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -30,11 +32,14 @@ type ArtistRepository interface {
 type AlbumRepository interface {
 	Create(ctx context.Context, album *models.Album) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Album, error)
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Album, error)
 	GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Album, error)
 	GetByArtistID(ctx context.Context, artistID uuid.UUID, limit, offset int) ([]*models.Album, error)
+	CountByArtistID(ctx context.Context, artistID uuid.UUID) (int, error)
 	Update(ctx context.Context, album *models.Album) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*models.Album, error)
+	Count(ctx context.Context) (int, error)
 }
 
 type TrackRepository interface {
@@ -42,34 +47,43 @@ type TrackRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Track, error)
 	GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Track, error)
 	GetByAlbumID(ctx context.Context, albumID uuid.UUID, limit, offset int) ([]*models.Track, error)
+	CountByAlbumID(ctx context.Context, albumID uuid.UUID) (int, error)
 	Update(ctx context.Context, track *models.Track) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*models.Track, error)
+	Count(ctx context.Context) (int, error)
 }
 
 type ReviewRepository interface {
 	Create(ctx context.Context, review *models.Review) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Review, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Review, error)
+	CountByUserID(ctx context.Context, userID uuid.UUID) (int, error)
 	GetByAlbumID(ctx context.Context, albumID uuid.UUID, limit, offset int) ([]*models.Review, error)
+	CountByAlbumID(ctx context.Context, albumID uuid.UUID) (int, error)
+	AverageRatingByAlbumID(ctx context.Context, albumID uuid.UUID) (*float64, error)
 	GetByUserAndAlbum(ctx context.Context, userID, albumID uuid.UUID) (*models.Review, error)
 	Update(ctx context.Context, review *models.Review) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*models.Review, error)
+	Count(ctx context.Context) (int, error)
 }
 
 type PlaylistRepository interface {
 	Create(ctx context.Context, playlist *models.Playlist) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Playlist, error)
 	GetByCreatorID(ctx context.Context, creatorID uuid.UUID, limit, offset int) ([]*models.Playlist, error)
+	CountByCreatorID(ctx context.Context, creatorID uuid.UUID) (int, error)
 	Update(ctx context.Context, playlist *models.Playlist) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*models.Playlist, error)
+	Count(ctx context.Context) (int, error)
 
 	// Playlist track operations
 	AddTrack(ctx context.Context, playlistID, trackID uuid.UUID, position int) error
 	RemoveTrack(ctx context.Context, playlistID, trackID uuid.UUID) error
 	GetTracks(ctx context.Context, playlistID uuid.UUID, limit, offset int) ([]*models.Track, error)
+	CountTracks(ctx context.Context, playlistID uuid.UUID) (int, error)
 	ReorderTracks(ctx context.Context, playlistID uuid.UUID, trackPositions map[uuid.UUID]int) error
 }
 

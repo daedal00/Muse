@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { useQuery } from "@apollo/client";
 import { GET_REVIEWS } from "../lib/graphql/queries";
 
@@ -44,7 +45,10 @@ export default function ReviewsPage() {
           </h3>
           <p className="text-red-600">{error.message}</p>
           <p className="text-sm text-red-500 mt-2">
-            This might be expected if no reviews exist in the database yet.
+            {error.message.includes('relation "reviews" does not exist') ||
+            error.message.includes("SQLSTATE 42P01")
+              ? "Database migrations are not applied yet. Run the backend migrations and retry."
+              : "This might be expected if no reviews exist in the database yet."}
           </p>
         </div>
       )}
@@ -67,7 +71,12 @@ export default function ReviewsPage() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-lg font-semibold">
-                        {review.album.title}
+                        <Link
+                          href={`/albums/${review.album.id}`}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          {review.album.title}
+                        </Link>
                       </h3>
                       <p className="text-gray-600">
                         by {review.album.artist.name}

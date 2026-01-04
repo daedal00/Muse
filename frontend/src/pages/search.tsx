@@ -7,7 +7,8 @@ export default function SearchPage() {
       <div className="text-center">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">Search Music</h1>
         <p className="text-lg text-gray-600">
-          Test the Spotify API integration by searching for albums and artists
+          Test the Spotify API integration by searching for albums, artists, and
+          tracks
         </p>
       </div>
 
@@ -23,7 +24,8 @@ export default function SearchPage() {
             Beatles"
           </li>
           <li>
-            Switch between Albums and Artists to test different search types
+            Switch between Albums, Artists, and Tracks to test different search
+            types
           </li>
           <li>Check the Network tab in DevTools to see GraphQL queries</li>
         </ul>

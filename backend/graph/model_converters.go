@@ -80,7 +80,7 @@ func dbTrackToGraphQL(dbTrack *models.Track) *model.Track {
 
 	var duration *int32
 	if dbTrack.DurationMs != nil {
-		val := safeIntToInt32(*dbTrack.DurationMs)
+		val := safeIntToInt32(*dbTrack.DurationMs / 1000)
 		duration = &val
 	}
 

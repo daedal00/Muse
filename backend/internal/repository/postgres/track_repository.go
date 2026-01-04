@@ -118,6 +118,17 @@ func (r *trackRepository) GetByAlbumID(ctx context.Context, albumID uuid.UUID, l
 	return tracks, nil
 }
 
+func (r *trackRepository) CountByAlbumID(ctx context.Context, albumID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM tracks WHERE album_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, albumID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count tracks by album: %w", err)
+	}
+
+	return count, nil
+}
+
 func (r *trackRepository) Update(ctx context.Context, track *models.Track) error {
 	query := `
 		UPDATE tracks 
@@ -187,4 +198,15 @@ func (r *trackRepository) List(ctx context.Context, limit, offset int) ([]*model
 	}
 
 	return tracks, nil
+}
+
+func (r *trackRepository) Count(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM tracks`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count tracks: %w", err)
+	}
+
+	return count, nil
 }

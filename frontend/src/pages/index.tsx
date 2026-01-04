@@ -57,7 +57,7 @@ export default function HomePage() {
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h3 className="text-lg font-semibold mb-3">🔍 Search</h3>
           <p className="text-gray-600 mb-4">
-            Test album and artist search functionality using Spotify API
+            Test album, artist, and track search functionality using Spotify API
             integration.
           </p>
           <a
@@ -65,6 +65,19 @@ export default function HomePage() {
             className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Try Search
+          </a>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-3">📊 Dashboard</h3>
+          <p className="text-gray-600 mb-4">
+            View your profile summary and quick access to test pages.
+          </p>
+          <a
+            href="/dashboard"
+            className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Open Dashboard
           </a>
         </div>
 

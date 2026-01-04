@@ -157,3 +157,6 @@ tramp
 # Application specific
 muse
 /muse 
+/.gocache
+/.gomodcache
+/.gopath

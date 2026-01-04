@@ -25,6 +25,9 @@ const Header: React.FC = () => {
             <Link href="/" className="text-gray-700 hover:text-blue-600">
               Home
             </Link>
+            <Link href="/dashboard" className="text-gray-700 hover:text-blue-600">
+              Dashboard
+            </Link>
             <Link href="/search" className="text-gray-700 hover:text-blue-600">
               Search
             </Link>

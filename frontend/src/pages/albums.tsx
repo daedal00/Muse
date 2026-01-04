@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { useQuery } from "@apollo/client";
 import { GET_ALBUMS } from "../lib/graphql/queries";
 
@@ -40,7 +41,10 @@ export default function AlbumsPage() {
           </h3>
           <p className="text-red-600">{error.message}</p>
           <p className="text-sm text-red-500 mt-2">
-            This might be expected if no albums are stored in the database yet.
+            {error.message.includes('relation "albums" does not exist') ||
+            error.message.includes("SQLSTATE 42P01")
+              ? "Database migrations are not applied yet. Run the backend migrations and retry."
+              : "This might be expected if no albums are stored in the database yet."}
           </p>
         </div>
       )}
@@ -67,7 +71,14 @@ export default function AlbumsPage() {
                       className="w-full h-48 object-cover rounded mb-4"
                     />
                   )}
-                  <h3 className="text-lg font-semibold mb-2">{album.title}</h3>
+                  <h3 className="text-lg font-semibold mb-2">
+                    <Link
+                      href={`/albums/${album.id}`}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      {album.title}
+                    </Link>
+                  </h3>
                   <p className="text-gray-600 mb-2">by {album.artist.name}</p>
                   {album.releaseDate && (
                     <p className="text-sm text-gray-500">

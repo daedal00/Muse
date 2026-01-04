@@ -74,3 +74,24 @@ export const ADD_TRACK_TO_PLAYLIST = gql`
     }
   }
 `;
+
+export const IMPORT_ALBUM = gql`
+  mutation ImportAlbum($spotifyAlbumID: ID!) {
+    importAlbum(spotifyAlbumID: $spotifyAlbumID) {
+      id
+      title
+    }
+  }
+`;
+
+export const IMPORT_TRACK = gql`
+  mutation ImportTrack($spotifyTrackID: ID!) {
+    importTrack(spotifyTrackID: $spotifyTrackID) {
+      id
+      title
+      album {
+        id
+      }
+    }
+  }
+`;

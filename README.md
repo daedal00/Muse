@@ -20,14 +20,14 @@ Muse allows users to:
 - **GraphQL API** built with Go and `gqlgen`
 - **PostgreSQL** database for all persistent data
 - **Redis** for session management and caching (optional)
-- **Spotify API integration** for music data and search
+- **Spotify API integration** for music data and search (optional for non-search use cases)
 - **JWT Authentication** for secure user sessions
 - **Docker support** for easy deployment
 
-### Frontend (Planned)
+### Frontend (Implemented for API Testing)
 
-- **React (TypeScript)** for web application
-- **React Native** for mobile apps
+- **Next.js (TypeScript)** API testing UI (basic pages)
+- **React Native** for mobile apps (planned)
 
 ## 📁 Project Structure
 
@@ -43,7 +43,7 @@ Muse/
 │   │   └── spotify/        # Spotify API integration
 │   ├── migrations/         # Database migrations
 │   └── server.go          # Main application entry
-├── frontend/               # React frontend (planned)
+├── frontend/               # Next.js frontend (API testing UI)
 └── mobile/                # React Native app (planned)
 ```
 
@@ -56,19 +56,23 @@ Muse/
 - **Database Layer**: Full CRUD operations for all entities
 - **Authentication**: JWT-based user authentication
 - **Spotify Integration**: Search artists, albums, and tracks
-- **Session Management**: Redis-based session storage
+- **Session Management**: Redis repositories implemented (JWT flow does not persist sessions yet)
 - **Comprehensive Testing**: All repositories tested and working
 - **CI/CD Pipeline**: GitHub Actions with testing and deployment
 
 ### 🔧 Backend - Nearly Complete
 
-- **GraphQL Resolvers**: 90% complete, few remaining resolvers to finish
+- **GraphQL Resolvers**: Core queries/mutations implemented
 - **Pagination**: Cursor-based pagination implemented
 - **Error Handling**: Comprehensive error handling throughout
 
+### ⚠️ Known Gaps
+
+- **Product UI**: The current frontend is a testing harness, not a full UX
+
 ### 📋 Planned Features
 
-- **Frontend Development**: React web application
+- **Frontend Development**: Product UI (current frontend is a testing harness)
 - **Mobile App**: React Native for iOS/Android
 - **Playlist Conversion**: Convert playlists between streaming services
 - **Advanced Recommendations**: ML-based music recommendations
@@ -86,7 +90,7 @@ Muse/
 | **External APIs**  | Spotify Web API                | ✅ Implemented |
 | **Testing**        | Go testing + integration tests | ✅ Implemented |
 | **CI/CD**          | GitHub Actions                 | ✅ Implemented |
-| **Frontend**       | React (TypeScript)             | 🔄 Planned     |
+| **Frontend**       | Next.js (TypeScript)           | ✅ Implemented |
 | **Mobile**         | React Native                   | 🔄 Planned     |
 | **Deployment**     | Docker + Kubernetes            | 🔄 Planned     |
 
@@ -133,6 +137,7 @@ Muse/
 ```bash
 cd backend
 go mod tidy
+go run cmd/migrate/main.go up
 go run server.go
 ```
 
@@ -153,7 +158,7 @@ Once running, visit `http://localhost:8080` for the GraphQL playground.
 
 ### Immediate (Backend Completion)
 
-1. **Finish remaining GraphQL resolvers** (Track, Tracks, Playlist, Playlists, Reviews, Review)
+1. **Product UI**: Replace the testing harness with full UX flows
 2. **Set up production database** (NeonDB or similar)
 3. **Deploy backend** to production environment
 

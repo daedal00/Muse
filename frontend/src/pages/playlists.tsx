@@ -40,7 +40,10 @@ export default function PlaylistsPage() {
           </h3>
           <p className="text-red-600">{error.message}</p>
           <p className="text-sm text-red-500 mt-2">
-            This might be expected if no playlists exist in the database yet.
+            {error.message.includes('relation "playlists" does not exist') ||
+            error.message.includes("SQLSTATE 42P01")
+              ? "Database migrations are not applied yet. Run the backend migrations and retry."
+              : "This might be expected if no playlists exist in the database yet."}
           </p>
         </div>
       )}

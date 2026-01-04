@@ -95,6 +95,17 @@ func (r *playlistRepository) GetByCreatorID(ctx context.Context, creatorID uuid.
 	return playlists, nil
 }
 
+func (r *playlistRepository) CountByCreatorID(ctx context.Context, creatorID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM playlists WHERE creator_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, creatorID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count playlists by creator: %w", err)
+	}
+
+	return count, nil
+}
+
 func (r *playlistRepository) Update(ctx context.Context, playlist *models.Playlist) error {
 	query := `
 		UPDATE playlists 
@@ -180,6 +191,17 @@ func (r *playlistRepository) List(ctx context.Context, limit, offset int) ([]*mo
 	}
 
 	return playlists, nil
+}
+
+func (r *playlistRepository) Count(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM playlists`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count playlists: %w", err)
+	}
+
+	return count, nil
 }
 
 // Playlist track operations
@@ -294,6 +316,17 @@ func (r *playlistRepository) GetTracks(ctx context.Context, playlistID uuid.UUID
 	}
 
 	return tracks, nil
+}
+
+func (r *playlistRepository) CountTracks(ctx context.Context, playlistID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, playlistID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count playlist tracks: %w", err)
+	}
+
+	return count, nil
 }
 
 func (r *playlistRepository) ReorderTracks(ctx context.Context, playlistID uuid.UUID, trackPositions map[uuid.UUID]int) error {

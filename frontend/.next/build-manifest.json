@@ -12,11 +12,6 @@
   ],
   "rootMainFiles": [],
   "pages": {
-    "/": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/index.js"
-    ],
     "/_app": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
@@ -32,25 +27,35 @@
       "static/chunks/main.js",
       "static/chunks/pages/albums.js"
     ],
+    "/albums/[id]": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/albums/[id].js"
+    ],
     "/auth": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/auth.js"
+    ],
+    "/dashboard": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/dashboard.js"
     ],
     "/playlists": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/playlists.js"
     ],
-    "/reviews": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/reviews.js"
-    ],
     "/search": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/search.js"
+    ],
+    "/tracks/[id]": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/tracks/[id].js"
     ]
   },
   "ampFirstPages": []

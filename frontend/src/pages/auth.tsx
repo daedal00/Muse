@@ -9,7 +9,7 @@ export default function AuthPage() {
           Authentication
         </h1>
         <p className="text-lg text-gray-600">
-          Test user registration and login functionality
+          Test user registration and login functionality (redirects to dashboard)
         </p>
       </div>
 
@@ -21,6 +21,7 @@ export default function AuthPage() {
           <li>Try creating a new account with the "Sign Up" form</li>
           <li>Test login with existing credentials</li>
           <li>Check how authentication state updates in the header</li>
+          <li>Successful login redirects you to the dashboard</li>
           <li>JWT tokens are stored in localStorage</li>
           <li>The "me" query will work once authenticated</li>
         </ul>

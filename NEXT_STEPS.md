@@ -11,9 +11,9 @@ Your Muse backend is **exceptionally well-built** and ready for production:
 - ✅ **Authentication**: JWT with Redis session management
 - ✅ **External APIs**: Spotify integration working
 - ✅ **Production Features**: Docker, CI/CD, health checks, error handling
-- ✅ **GraphQL API**: Complete schema, most resolvers implemented
+- ✅ **GraphQL API**: Schema and resolvers implemented
 
-**Only 6 simple GraphQL resolvers remaining** - all underlying code exists and is tested.
+**Nested connections** (albums/reviews/playlists/tracks) now resolve with pagination.
 
 ### 🔍 **Redis Usage Clarified**
 
@@ -22,22 +22,17 @@ Redis in your backend serves two purposes:
 1. **Session Management** 🔐: JWT token storage with expiration
 2. **Performance Caching** ⚡: Frequently accessed data (album searches, user profiles)
 
-**Important**: Redis is **optional** - your backend gracefully handles Redis unavailability.
+**Important**: Redis is **optional** - the backend will continue without cache/subscription pubsub.
 
 ## 🚀 **Immediate Next Steps (Priority Order)**
 
-### **Step 1: Complete Backend (3-4 hours) 🎯**
+### **Step 1: Backend Hardening (1 day) 🎯**
 
-Implement the remaining 6 GraphQL resolvers by copying existing patterns:
+Focus on production readiness:
 
-1. **Track Resolver** - Copy from `Album` resolver pattern
-2. **Tracks Resolver** - Copy from `Albums` resolver with pagination
-3. **Playlist Resolver** - Copy from `Album` resolver pattern
-4. **Playlists Resolver** - Copy from `Albums` resolver with pagination
-5. **Review Resolver** - Copy from `Album` resolver pattern
-6. **Reviews Resolver** - Copy from `Albums` resolver with pagination
-
-**All repository methods already exist and are tested** - just wire them to GraphQL.
+1. **Load testing** to establish baseline performance
+2. **Monitoring setup** (metrics/log aggregation)
+3. **Optional dataloaders** for heavy nested queries
 
 ### **Step 2: Deploy Backend to Production (1 day)**
 
@@ -72,8 +67,9 @@ frontend/
 1. **Authentication**: Login/Register
 2. **Discovery**: Search albums, browse trending
 3. **Album Details**: View album info, reviews, add rating
-4. **User Profile**: "My Muse" page with ratings/playlists
-5. **Playlist Management**: Create, edit, share playlists
+4. **Track Details**: View track metadata (consider track-level reviews)
+5. **User Profile**: "My Muse" page with ratings/playlists
+6. **Playlist Management**: Create, edit, share playlists
 
 #### **Recommended Tech Stack**
 
@@ -87,7 +83,7 @@ frontend/
 
 ### **Week 1-2: Backend Completion + Deployment**
 
-- ✅ Complete 6 remaining GraphQL resolvers
+- ✅ GraphQL resolvers implemented
 - ✅ Deploy backend to production
 - ✅ Set up production database and Redis
 - ✅ Configure CI/CD for automatic deployments
@@ -170,7 +166,7 @@ npm install tailwindcss
 
 ### **Backend Completion (Week 1)**
 
-- [ ] All 6 GraphQL resolvers implemented
+- [x] GraphQL resolvers implemented
 - [ ] Backend deployed to production
 - [ ] Health checks passing
 - [ ] GraphQL playground accessible
@@ -274,7 +270,7 @@ Create a **music-focused Letterboxd**:
 
 ## 🎯 **Your Immediate Action Plan**
 
-1. **Today**: Complete the 6 remaining GraphQL resolvers (3-4 hours)
+1. **Today**: Backend hardening checklist and production readiness review
 2. **This Week**: Deploy backend to production with NeonDB
 3. **Next Week**: Start React frontend with Apollo Client
 4. **Month 1**: MVP with core rating/review functionality

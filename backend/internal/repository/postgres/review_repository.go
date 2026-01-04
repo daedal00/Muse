@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/daedal00/muse/backend/internal/database"
@@ -95,6 +96,17 @@ func (r *reviewRepository) GetByUserID(ctx context.Context, userID uuid.UUID, li
 	return reviews, nil
 }
 
+func (r *reviewRepository) CountByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM reviews WHERE user_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, userID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count reviews by user: %w", err)
+	}
+
+	return count, nil
+}
+
 func (r *reviewRepository) GetByAlbumID(ctx context.Context, albumID uuid.UUID, limit, offset int) ([]*models.Review, error) {
 	query := `
 		SELECT id, user_id, album_id, rating, review_text, created_at, updated_at
@@ -128,6 +140,32 @@ func (r *reviewRepository) GetByAlbumID(ctx context.Context, albumID uuid.UUID, 
 	}
 
 	return reviews, nil
+}
+
+func (r *reviewRepository) CountByAlbumID(ctx context.Context, albumID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM reviews WHERE album_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, albumID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count reviews by album: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *reviewRepository) AverageRatingByAlbumID(ctx context.Context, albumID uuid.UUID) (*float64, error) {
+	query := `SELECT AVG(rating) FROM reviews WHERE album_id = $1`
+
+	var avg sql.NullFloat64
+	if err := r.db.Pool.QueryRow(ctx, query, albumID).Scan(&avg); err != nil {
+		return nil, fmt.Errorf("failed to average rating by album: %w", err)
+	}
+
+	if !avg.Valid {
+		return nil, nil
+	}
+
+	return &avg.Float64, nil
 }
 
 func (r *reviewRepository) GetByUserAndAlbum(ctx context.Context, userID, albumID uuid.UUID) (*models.Review, error) {
@@ -222,4 +260,15 @@ func (r *reviewRepository) List(ctx context.Context, limit, offset int) ([]*mode
 	}
 
 	return reviews, nil
+}
+
+func (r *reviewRepository) Count(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM reviews`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count reviews: %w", err)
+	}
+
+	return count, nil
 }

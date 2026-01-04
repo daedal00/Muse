@@ -5,6 +5,8 @@ enum ExternalSource {
   MUSICBRAINZ
 }
 
+directive @goField(forceResolver: Boolean, name: String) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
 # -----------------------------------------------------------
 # Core Domain Types
 # -----------------------------------------------------------
@@ -15,8 +17,8 @@ type User {
   email: String!
   bio: String
   avatar: String
-  playlists: PlaylistConnection!
-  reviews: ReviewConnection!
+  playlists(first: Int, after: String): PlaylistConnection! @goField(forceResolver: true)
+  reviews(first: Int, after: String): ReviewConnection! @goField(forceResolver: true)
 }
 
 type Album {
@@ -26,15 +28,16 @@ type Album {
   artist: Artist!
   releaseDate: DateTime
   coverImage: String # From spotify or S3 if overridden
-  tracks: TrackConnection!
-  reviews: ReviewConnection!
+  averageRating: Float @goField(forceResolver: true)
+  tracks(first: Int, after: String): TrackConnection! @goField(forceResolver: true)
+  reviews(first: Int, after: String): ReviewConnection! @goField(forceResolver: true)
 }
 
 type Artist {
   id: ID!
   spotifyID: String # Spotify specific ID
   name: String!
-  albums: AlbumConnection!
+  albums(first: Int, after: String): AlbumConnection! @goField(forceResolver: true)
 }
 
 type Track {
@@ -60,7 +63,7 @@ type Playlist {
   title: String!
   description: String
   coverImage: String # url stored in S3 bucket
-  tracks: TrackConnection!
+  tracks(first: Int, after: String): TrackConnection! @goField(forceResolver: true)
   creator: User!
   createdAt: DateTime!
 }
@@ -165,6 +168,13 @@ input ArtistSearchInput {
   source: ExternalSource = SPOTIFY
 }
 
+input TrackSearchInput {
+  query: String!
+  limit: Int
+  offset: Int
+  source: ExternalSource = SPOTIFY
+}
+
 # ---------------------------------------
 # Query Type – Core and External Searches
 # ---------------------------------------
@@ -190,6 +200,7 @@ type Query {
   # External Search Queries
   searchAlbums(input: AlbumSearchInput!): [AlbumSearchResult!]!
   searchArtists(input: ArtistSearchInput!): [ArtistSearchResult!]!
+  searchTracks(input: TrackSearchInput!): [TrackSearchResult!]!
 }
 
 # ---------------------------------------
@@ -214,6 +225,9 @@ type Mutation {
   createReview(input: CreateReviewInput!): Review!
   createPlaylist(input: CreatePlaylistInput!): Playlist!
   addTrackToPlaylist(playlistId: ID!, trackId: ID!): Playlist!
+  importAlbum(spotifyAlbumID: ID!): Album!
+  importArtist(spotifyArtistID: ID!): Artist!
+  importTrack(spotifyTrackID: ID!): Track!
 }
 
 type Subscription {
