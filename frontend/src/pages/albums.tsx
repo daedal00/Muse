@@ -57,7 +57,7 @@ export default function AlbumsPage() {
 
           {data.albums.edges.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {data.albums.edges.map(({ node: album }) => (
+              {data.albums.edges.map(({ node: album }: { node: any }) => (
                 <div key={album.id} className="card">
                   {album.coverImage && (
                     <img
@@ -111,7 +111,6 @@ export default function AlbumsPage() {
           )}
         </div>
       )}
-
     </div>
   );
 }

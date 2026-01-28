@@ -54,17 +54,18 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 
 	// Initialize repositories (using Redis for sessions, PostgreSQL for others)
 	repos := &repository.Repositories{
-		User:        postgres.NewUserRepository(postgresDB),
-		Artist:      postgres.NewArtistRepository(postgresDB),
-		Album:       postgres.NewAlbumRepository(postgresDB),
-		Track:       postgres.NewTrackRepository(postgresDB),
-		Review:      postgres.NewReviewRepository(postgresDB),
-		TrackReview: postgres.NewTrackReviewRepository(postgresDB),
-		Playlist:    postgres.NewPlaylistRepository(postgresDB),
-		Spotify:     postgres.NewSpotifyTokenRepository(postgresDB),
-		Comment:     postgres.NewCommentRepository(postgresDB),
-		Session:     sessionRepo,
-		MusicCache:  musicCacheRepo,
+		User:            postgres.NewUserRepository(postgresDB),
+		Artist:          postgres.NewArtistRepository(postgresDB),
+		Album:           postgres.NewAlbumRepository(postgresDB),
+		Track:           postgres.NewTrackRepository(postgresDB),
+		Review:          postgres.NewReviewRepository(postgresDB),
+		TrackReview:     postgres.NewTrackReviewRepository(postgresDB),
+		Playlist:        postgres.NewPlaylistRepository(postgresDB),
+		Spotify:         postgres.NewSpotifyTokenRepository(postgresDB),
+		Comment:         postgres.NewCommentRepository(postgresDB),
+		ProfileSettings: postgres.NewProfileSettingsRepository(postgresDB),
+		Session:         sessionRepo,
+		MusicCache:      musicCacheRepo,
 	}
 
 	// Initialize Spotify services (optional)

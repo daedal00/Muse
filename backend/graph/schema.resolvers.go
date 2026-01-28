@@ -433,46 +433,124 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 }
 
 // UpdateProfileSettings is the resolver for the updateProfileSettings field.
-// For now, returns defaults since we haven't added the profile_settings table yet.
 func (r *mutationResolver) UpdateProfileSettings(ctx context.Context, input model.UpdateProfileSettingsInput) (*model.ProfileSettings, error) {
-	raw := ctx.Value(UserIDKey)
-	if raw == nil {
-		return nil, fmt.Errorf("unauthenticated")
+	userID, err := r.currentUserUUID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// Return the updated settings (in a real impl, this would be stored in DB)
-	layout := model.ProfileLayoutGrid
+	// Fetch existing settings (or get defaults)
+	settings, err := r.repos.ProfileSettings.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get profile settings: %w", err)
+	}
+
+	// Update fields from input
 	if input.Layout != nil {
-		layout = *input.Layout
+		switch *input.Layout {
+		case model.ProfileLayoutGrid:
+			settings.Layout = models.ProfileLayoutGrid
+		case model.ProfileLayoutList:
+			settings.Layout = models.ProfileLayoutList
+		case model.ProfileLayoutBento:
+			settings.Layout = models.ProfileLayoutBento
+		}
 	}
 
-	pinnedAlbums := []string{}
+	if input.PrimaryColor != nil {
+		settings.PrimaryColor = input.PrimaryColor
+	}
+
+	if input.AccentColor != nil {
+		settings.AccentColor = input.AccentColor
+	}
+
+	if input.BackgroundStyle != nil {
+		switch *input.BackgroundStyle {
+		case model.BackgroundStyleSolid:
+			bs := models.BackgroundStyleSolid
+			settings.BackgroundStyle = &bs
+		case model.BackgroundStyleGradient:
+			bs := models.BackgroundStyleGradient
+			settings.BackgroundStyle = &bs
+		case model.BackgroundStyleImage:
+			bs := models.BackgroundStyleImage
+			settings.BackgroundStyle = &bs
+		}
+	}
+
+	if input.BackgroundValue != nil {
+		settings.BackgroundValue = input.BackgroundValue
+	}
+
 	if input.PinnedAlbumIds != nil {
-		pinnedAlbums = input.PinnedAlbumIds
+		ids := make([]uuid.UUID, 0, len(input.PinnedAlbumIds))
+		for _, idStr := range input.PinnedAlbumIds {
+			if id, err := uuid.Parse(idStr); err == nil {
+				ids = append(ids, id)
+			}
+		}
+		settings.PinnedAlbumIDs = ids
 	}
 
-	pinnedTracks := []string{}
 	if input.PinnedTrackIds != nil {
-		pinnedTracks = input.PinnedTrackIds
+		ids := make([]uuid.UUID, 0, len(input.PinnedTrackIds))
+		for _, idStr := range input.PinnedTrackIds {
+			if id, err := uuid.Parse(idStr); err == nil {
+				ids = append(ids, id)
+			}
+		}
+		settings.PinnedTrackIDs = ids
 	}
 
-	sectionsOrder := []string{"favorites", "recentReviews", "topTracks", "playlists"}
+	if input.FeaturedArtistIds != nil {
+		ids := make([]uuid.UUID, 0, len(input.FeaturedArtistIds))
+		for _, idStr := range input.FeaturedArtistIds {
+			if id, err := uuid.Parse(idStr); err == nil {
+				ids = append(ids, id)
+			}
+		}
+		settings.FeaturedArtistIDs = ids
+	}
+
 	if input.SectionsOrder != nil {
-		sectionsOrder = input.SectionsOrder
+		settings.SectionsOrder = input.SectionsOrder
 	}
 
-	showSpotify := true
 	if input.ShowSpotifyStats != nil {
-		showSpotify = *input.ShowSpotifyStats
+		settings.ShowSpotifyStats = *input.ShowSpotifyStats
 	}
 
-	return &model.ProfileSettings{
-		Layout:           layout,
-		PinnedAlbumIds:   pinnedAlbums,
-		PinnedTrackIds:   pinnedTracks,
-		SectionsOrder:    sectionsOrder,
-		ShowSpotifyStats: showSpotify,
-	}, nil
+	if input.ShowListeningHistory != nil {
+		settings.ShowListeningHistory = *input.ShowListeningHistory
+	}
+
+	if input.BioStyle != nil {
+		switch *input.BioStyle {
+		case model.BioStyleMinimal:
+			bs := models.BioStyleMinimal
+			settings.BioStyle = &bs
+		case model.BioStyleDetailed:
+			bs := models.BioStyleDetailed
+			settings.BioStyle = &bs
+		case model.BioStyleQuote:
+			bs := models.BioStyleQuote
+			settings.BioStyle = &bs
+		}
+	}
+
+	if input.CustomTags != nil {
+		settings.CustomTags = input.CustomTags
+	}
+
+	// Save updated settings
+	if err := r.repos.ProfileSettings.Upsert(ctx, settings); err != nil {
+		return nil, fmt.Errorf("failed to save profile settings: %w", err)
+	}
+
+	log.Printf("[MUTATION] UpdateProfileSettings completed for user %s", userID)
+
+	return dbProfileSettingsToGraphQL(settings), nil
 }
 
 // CreateReview is the resolver for the createReview field.
@@ -1164,6 +1242,122 @@ func (r *playlistResolver) Tracks(ctx context.Context, obj *model.Playlist, firs
 			HasNextPage: hasNextPage,
 		},
 	}, nil
+}
+
+// PinnedAlbums is the resolver for the pinnedAlbums field.
+func (r *profileSettingsResolver) PinnedAlbums(ctx context.Context, obj *model.ProfileSettings) ([]*model.Album, error) {
+	if len(obj.PinnedAlbumIds) == 0 {
+		return []*model.Album{}, nil
+	}
+
+	// Convert string IDs to UUIDs
+	ids := make([]uuid.UUID, 0, len(obj.PinnedAlbumIds))
+	for _, idStr := range obj.PinnedAlbumIds {
+		if id, err := uuid.Parse(idStr); err == nil {
+			ids = append(ids, id)
+		}
+	}
+
+	if len(ids) == 0 {
+		return []*model.Album{}, nil
+	}
+
+	// Fetch albums from database
+	dbAlbums, err := r.repos.Album.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch pinned albums: %w", err)
+	}
+
+	// Hydrate albums with artist info
+	artistCache := map[uuid.UUID]*models.Artist{}
+	for _, album := range dbAlbums {
+		if err := r.hydrateAlbum(ctx, album, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate album: %w", err)
+		}
+	}
+
+	// Convert to GraphQL models
+	result := make([]*model.Album, len(dbAlbums))
+	for i, album := range dbAlbums {
+		result[i] = dbAlbumToGraphQL(album)
+	}
+
+	return result, nil
+}
+
+// PinnedTracks is the resolver for the pinnedTracks field.
+func (r *profileSettingsResolver) PinnedTracks(ctx context.Context, obj *model.ProfileSettings) ([]*model.Track, error) {
+	if len(obj.PinnedTrackIds) == 0 {
+		return []*model.Track{}, nil
+	}
+
+	// Convert string IDs to UUIDs
+	ids := make([]uuid.UUID, 0, len(obj.PinnedTrackIds))
+	for _, idStr := range obj.PinnedTrackIds {
+		if id, err := uuid.Parse(idStr); err == nil {
+			ids = append(ids, id)
+		}
+	}
+
+	if len(ids) == 0 {
+		return []*model.Track{}, nil
+	}
+
+	// Fetch tracks from database
+	dbTracks, err := r.repos.Track.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch pinned tracks: %w", err)
+	}
+
+	// Hydrate tracks with album and artist info
+	albumCache := map[uuid.UUID]*models.Album{}
+	artistCache := map[uuid.UUID]*models.Artist{}
+	for _, track := range dbTracks {
+		if err := r.hydrateTrack(ctx, track, albumCache, artistCache); err != nil {
+			return nil, fmt.Errorf("failed to hydrate track: %w", err)
+		}
+	}
+
+	// Convert to GraphQL models
+	result := make([]*model.Track, len(dbTracks))
+	for i, track := range dbTracks {
+		result[i] = dbTrackToGraphQL(track)
+	}
+
+	return result, nil
+}
+
+// FeaturedArtists is the resolver for the featuredArtists field.
+func (r *profileSettingsResolver) FeaturedArtists(ctx context.Context, obj *model.ProfileSettings) ([]*model.Artist, error) {
+	if len(obj.FeaturedArtistIds) == 0 {
+		return []*model.Artist{}, nil
+	}
+
+	// Convert string IDs to UUIDs
+	ids := make([]uuid.UUID, 0, len(obj.FeaturedArtistIds))
+	for _, idStr := range obj.FeaturedArtistIds {
+		if id, err := uuid.Parse(idStr); err == nil {
+			ids = append(ids, id)
+		}
+	}
+
+	if len(ids) == 0 {
+		return []*model.Artist{}, nil
+	}
+
+	// Fetch artists from database
+	dbArtists, err := r.repos.Artist.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch featured artists: %w", err)
+	}
+
+	// Convert to GraphQL models
+	result := make([]*model.Artist, len(dbArtists))
+	for i, artist := range dbArtists {
+		result[i] = dbArtistToGraphQL(artist)
+	}
+
+	return result, nil
 }
 
 // Me is the resolver for the me field.
@@ -2753,15 +2947,19 @@ func (r *trackResolver) Comments(ctx context.Context, obj *model.Track, first *i
 
 // ProfileSettings is the resolver for the profileSettings field.
 func (r *userResolver) ProfileSettings(ctx context.Context, obj *model.User) (*model.ProfileSettings, error) {
-	// Return default profile settings
-	// In a full implementation, this would fetch from a profile_settings table
-	return &model.ProfileSettings{
-		Layout:           model.ProfileLayoutGrid,
-		PinnedAlbumIds:   []string{},
-		PinnedTrackIds:   []string{},
-		SectionsOrder:    []string{"favorites", "recentReviews", "topTracks", "playlists"},
-		ShowSpotifyStats: true,
-	}, nil
+	userID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
+	// Fetch profile settings from database (returns defaults if not found)
+	dbSettings, err := r.repos.ProfileSettings.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch profile settings: %w", err)
+	}
+
+	// Convert to GraphQL model
+	return dbProfileSettingsToGraphQL(dbSettings), nil
 }
 
 // Playlists is the resolver for the playlists field.
@@ -3067,6 +3265,9 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Playlist returns PlaylistResolver implementation.
 func (r *Resolver) Playlist() PlaylistResolver { return &playlistResolver{r} }
 
+// ProfileSettings returns ProfileSettingsResolver implementation.
+func (r *Resolver) ProfileSettings() ProfileSettingsResolver { return &profileSettingsResolver{r} }
+
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
@@ -3084,23 +3285,8 @@ type artistResolver struct{ *Resolver }
 type commentResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type playlistResolver struct{ *Resolver }
+type profileSettingsResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
 type trackResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func dbCommentToGraphQL(c *models.Comment) *model.Comment {
-	return &model.Comment{
-		ID:        c.ID.String(),
-		Content:   c.Content,
-		CreatedAt: c.CreatedAt.Format(time.RFC3339),
-	}
-}
-*/

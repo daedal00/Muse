@@ -172,10 +172,18 @@ export const UPDATE_PROFILE_SETTINGS = gql`
   mutation UpdateProfileSettings($input: UpdateProfileSettingsInput!) {
     updateProfileSettings(input: $input) {
       layout
+      primaryColor
+      accentColor
+      backgroundStyle
+      backgroundValue
       pinnedAlbumIds
       pinnedTrackIds
+      featuredArtistIds
       sectionsOrder
       showSpotifyStats
+      showListeningHistory
+      bioStyle
+      customTags
     }
   }
 `;

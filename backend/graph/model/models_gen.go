@@ -142,11 +142,22 @@ type PlaylistEdge struct {
 }
 
 type ProfileSettings struct {
-	Layout           ProfileLayout `json:"layout"`
-	PinnedAlbumIds   []string      `json:"pinnedAlbumIds"`
-	PinnedTrackIds   []string      `json:"pinnedTrackIds"`
-	SectionsOrder    []string      `json:"sectionsOrder"`
-	ShowSpotifyStats bool          `json:"showSpotifyStats"`
+	Layout               ProfileLayout    `json:"layout"`
+	PrimaryColor         *string          `json:"primaryColor,omitempty"`
+	AccentColor          *string          `json:"accentColor,omitempty"`
+	BackgroundStyle      *BackgroundStyle `json:"backgroundStyle,omitempty"`
+	BackgroundValue      *string          `json:"backgroundValue,omitempty"`
+	PinnedAlbumIds       []string         `json:"pinnedAlbumIds"`
+	PinnedAlbums         []*Album         `json:"pinnedAlbums"`
+	PinnedTrackIds       []string         `json:"pinnedTrackIds"`
+	PinnedTracks         []*Track         `json:"pinnedTracks"`
+	FeaturedArtistIds    []string         `json:"featuredArtistIds"`
+	FeaturedArtists      []*Artist        `json:"featuredArtists"`
+	SectionsOrder        []string         `json:"sectionsOrder"`
+	ShowSpotifyStats     bool             `json:"showSpotifyStats"`
+	ShowListeningHistory bool             `json:"showListeningHistory"`
+	BioStyle             *BioStyle        `json:"bioStyle,omitempty"`
+	CustomTags           []string         `json:"customTags"`
 }
 
 type Query struct {
@@ -265,11 +276,19 @@ type UpdateProfileInput struct {
 }
 
 type UpdateProfileSettingsInput struct {
-	Layout           *ProfileLayout `json:"layout,omitempty"`
-	PinnedAlbumIds   []string       `json:"pinnedAlbumIds,omitempty"`
-	PinnedTrackIds   []string       `json:"pinnedTrackIds,omitempty"`
-	SectionsOrder    []string       `json:"sectionsOrder,omitempty"`
-	ShowSpotifyStats *bool          `json:"showSpotifyStats,omitempty"`
+	Layout               *ProfileLayout   `json:"layout,omitempty"`
+	PrimaryColor         *string          `json:"primaryColor,omitempty"`
+	AccentColor          *string          `json:"accentColor,omitempty"`
+	BackgroundStyle      *BackgroundStyle `json:"backgroundStyle,omitempty"`
+	BackgroundValue      *string          `json:"backgroundValue,omitempty"`
+	PinnedAlbumIds       []string         `json:"pinnedAlbumIds,omitempty"`
+	PinnedTrackIds       []string         `json:"pinnedTrackIds,omitempty"`
+	FeaturedArtistIds    []string         `json:"featuredArtistIds,omitempty"`
+	SectionsOrder        []string         `json:"sectionsOrder,omitempty"`
+	ShowSpotifyStats     *bool            `json:"showSpotifyStats,omitempty"`
+	ShowListeningHistory *bool            `json:"showListeningHistory,omitempty"`
+	BioStyle             *BioStyle        `json:"bioStyle,omitempty"`
+	CustomTags           []string         `json:"customTags,omitempty"`
 }
 
 type User struct {
@@ -293,6 +312,120 @@ type UserConnection struct {
 type UserEdge struct {
 	Cursor string `json:"cursor"`
 	Node   *User  `json:"node"`
+}
+
+type BackgroundStyle string
+
+const (
+	BackgroundStyleSolid    BackgroundStyle = "SOLID"
+	BackgroundStyleGradient BackgroundStyle = "GRADIENT"
+	BackgroundStyleImage    BackgroundStyle = "IMAGE"
+)
+
+var AllBackgroundStyle = []BackgroundStyle{
+	BackgroundStyleSolid,
+	BackgroundStyleGradient,
+	BackgroundStyleImage,
+}
+
+func (e BackgroundStyle) IsValid() bool {
+	switch e {
+	case BackgroundStyleSolid, BackgroundStyleGradient, BackgroundStyleImage:
+		return true
+	}
+	return false
+}
+
+func (e BackgroundStyle) String() string {
+	return string(e)
+}
+
+func (e *BackgroundStyle) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BackgroundStyle(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BackgroundStyle", str)
+	}
+	return nil
+}
+
+func (e BackgroundStyle) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BackgroundStyle) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BackgroundStyle) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BioStyle string
+
+const (
+	BioStyleMinimal  BioStyle = "MINIMAL"
+	BioStyleDetailed BioStyle = "DETAILED"
+	BioStyleQuote    BioStyle = "QUOTE"
+)
+
+var AllBioStyle = []BioStyle{
+	BioStyleMinimal,
+	BioStyleDetailed,
+	BioStyleQuote,
+}
+
+func (e BioStyle) IsValid() bool {
+	switch e {
+	case BioStyleMinimal, BioStyleDetailed, BioStyleQuote:
+		return true
+	}
+	return false
+}
+
+func (e BioStyle) String() string {
+	return string(e)
+}
+
+func (e *BioStyle) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BioStyle(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BioStyle", str)
+	}
+	return nil
+}
+
+func (e BioStyle) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BioStyle) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BioStyle) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type ExternalSource string

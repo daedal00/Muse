@@ -144,3 +144,82 @@ func dbPlaylistToGraphQL(dbPlaylist *models.Playlist) *model.Playlist {
 		CreatedAt:   dbPlaylist.CreatedAt.Format(time.RFC3339),
 	}
 }
+
+func dbProfileSettingsToGraphQL(dbSettings *models.ProfileSettings) *model.ProfileSettings {
+	if dbSettings == nil {
+		return nil
+	}
+
+	// Convert layout
+	layout := model.ProfileLayoutGrid
+	switch dbSettings.Layout {
+	case models.ProfileLayoutList:
+		layout = model.ProfileLayoutList
+	case models.ProfileLayoutBento:
+		layout = model.ProfileLayoutBento
+	}
+
+	// Convert background style
+	var bgStyle *model.BackgroundStyle
+	if dbSettings.BackgroundStyle != nil {
+		switch *dbSettings.BackgroundStyle {
+		case models.BackgroundStyleSolid:
+			bs := model.BackgroundStyleSolid
+			bgStyle = &bs
+		case models.BackgroundStyleGradient:
+			bs := model.BackgroundStyleGradient
+			bgStyle = &bs
+		case models.BackgroundStyleImage:
+			bs := model.BackgroundStyleImage
+			bgStyle = &bs
+		}
+	}
+
+	// Convert bio style
+	var bioStyle *model.BioStyle
+	if dbSettings.BioStyle != nil {
+		switch *dbSettings.BioStyle {
+		case models.BioStyleMinimal:
+			bs := model.BioStyleMinimal
+			bioStyle = &bs
+		case models.BioStyleDetailed:
+			bs := model.BioStyleDetailed
+			bioStyle = &bs
+		case models.BioStyleQuote:
+			bs := model.BioStyleQuote
+			bioStyle = &bs
+		}
+	}
+
+	// Convert UUID arrays to string arrays
+	pinnedAlbumIds := make([]string, len(dbSettings.PinnedAlbumIDs))
+	for i, id := range dbSettings.PinnedAlbumIDs {
+		pinnedAlbumIds[i] = id.String()
+	}
+
+	pinnedTrackIds := make([]string, len(dbSettings.PinnedTrackIDs))
+	for i, id := range dbSettings.PinnedTrackIDs {
+		pinnedTrackIds[i] = id.String()
+	}
+
+	featuredArtistIds := make([]string, len(dbSettings.FeaturedArtistIDs))
+	for i, id := range dbSettings.FeaturedArtistIDs {
+		featuredArtistIds[i] = id.String()
+	}
+
+	return &model.ProfileSettings{
+		Layout:               layout,
+		PrimaryColor:         dbSettings.PrimaryColor,
+		AccentColor:          dbSettings.AccentColor,
+		BackgroundStyle:      bgStyle,
+		BackgroundValue:      dbSettings.BackgroundValue,
+		PinnedAlbumIds:       pinnedAlbumIds,
+		PinnedTrackIds:       pinnedTrackIds,
+		FeaturedArtistIds:    featuredArtistIds,
+		SectionsOrder:        dbSettings.SectionsOrder,
+		ShowSpotifyStats:     dbSettings.ShowSpotifyStats,
+		ShowListeningHistory: dbSettings.ShowListeningHistory,
+		BioStyle:             bioStyle,
+		CustomTags:           dbSettings.CustomTags,
+	}
+}

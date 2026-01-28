@@ -12,8 +12,8 @@
   }
 
   body {
-    font-family: "Space Grotesk", "Trebuchet MS", "Lucida Sans", Arial,
-      sans-serif;
+    font-family:
+      "Space Grotesk", "Trebuchet MS", "Lucida Sans", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -26,7 +26,8 @@
   }
 
   code {
-    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+    font-family:
+      "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
       "Courier New", monospace;
   }
 }
@@ -74,5 +75,98 @@
 
   .muted {
     @apply text-sm text-slate-600 dark:text-slate-400;
+  }
+
+  /* Bento Grid Layouts */
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+  }
+
+  .bento-grid-tracks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+
+  .bento-grid-albums {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+  }
+
+  .bento-featured {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  @media (min-width: 768px) {
+    .bento-grid {
+      grid-template-columns: repeat(6, 1fr);
+    }
+
+    .bento-grid-tracks {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .bento-grid-albums {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* Profile Theme Background */
+  .profile-bg-animated {
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
+  }
+
+  @keyframes gradient-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  /* Profile Card Hover Effects */
+  .profile-card-hover {
+    @apply transition-all duration-300;
+  }
+
+  .profile-card-hover:hover {
+    @apply -translate-y-1 shadow-lg;
+  }
+
+  /* Glassmorphism for Profile Header */
+  .profile-glass {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .dark .profile-glass {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Tag Animation */
+  .tag-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
   }
 }

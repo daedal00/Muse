@@ -35,12 +35,35 @@ enum ProfileLayout {
   BENTO
 }
 
+enum BackgroundStyle {
+  SOLID
+  GRADIENT
+  IMAGE
+}
+
+enum BioStyle {
+  MINIMAL
+  DETAILED
+  QUOTE
+}
+
 type ProfileSettings {
   layout: ProfileLayout!
+  primaryColor: String
+  accentColor: String
+  backgroundStyle: BackgroundStyle
+  backgroundValue: String
   pinnedAlbumIds: [ID!]!
+  pinnedAlbums: [Album!]! @goField(forceResolver: true)
   pinnedTrackIds: [ID!]!
+  pinnedTracks: [Track!]! @goField(forceResolver: true)
+  featuredArtistIds: [ID!]!
+  featuredArtists: [Artist!]! @goField(forceResolver: true)
   sectionsOrder: [String!]!
   showSpotifyStats: Boolean!
+  showListeningHistory: Boolean!
+  bioStyle: BioStyle
+  customTags: [String!]!
 }
 
 type Album {
@@ -347,10 +370,18 @@ input CreatePlaylistInput {
 
 input UpdateProfileSettingsInput {
   layout: ProfileLayout
+  primaryColor: String
+  accentColor: String
+  backgroundStyle: BackgroundStyle
+  backgroundValue: String
   pinnedAlbumIds: [ID!]
   pinnedTrackIds: [ID!]
+  featuredArtistIds: [ID!]
   sectionsOrder: [String!]
   showSpotifyStats: Boolean
+  showListeningHistory: Boolean
+  bioStyle: BioStyle
+  customTags: [String!]
 }
 
 input UpdateProfileInput {

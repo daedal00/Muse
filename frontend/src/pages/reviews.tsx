@@ -58,7 +58,7 @@ export default function ReviewsPage() {
 
           {data.reviews.edges.length > 0 ? (
             <div className="space-y-4">
-              {data.reviews.edges.map(({ node: review }) => (
+              {data.reviews.edges.map(({ node: review }: { node: any }) => (
                 <div key={review.id} className="card">
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -127,7 +127,6 @@ export default function ReviewsPage() {
           )}
         </div>
       )}
-
     </div>
   );
 }

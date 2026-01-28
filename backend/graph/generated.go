@@ -46,6 +46,7 @@ type ResolverRoot interface {
 	Comment() CommentResolver
 	Mutation() MutationResolver
 	Playlist() PlaylistResolver
+	ProfileSettings() ProfileSettingsResolver
 	Query() QueryResolver
 	Subscription() SubscriptionResolver
 	Track() TrackResolver
@@ -173,11 +174,22 @@ type ComplexityRoot struct {
 	}
 
 	ProfileSettings struct {
-		Layout           func(childComplexity int) int
-		PinnedAlbumIds   func(childComplexity int) int
-		PinnedTrackIds   func(childComplexity int) int
-		SectionsOrder    func(childComplexity int) int
-		ShowSpotifyStats func(childComplexity int) int
+		AccentColor          func(childComplexity int) int
+		BackgroundStyle      func(childComplexity int) int
+		BackgroundValue      func(childComplexity int) int
+		BioStyle             func(childComplexity int) int
+		CustomTags           func(childComplexity int) int
+		FeaturedArtistIds    func(childComplexity int) int
+		FeaturedArtists      func(childComplexity int) int
+		Layout               func(childComplexity int) int
+		PinnedAlbumIds       func(childComplexity int) int
+		PinnedAlbums         func(childComplexity int) int
+		PinnedTrackIds       func(childComplexity int) int
+		PinnedTracks         func(childComplexity int) int
+		PrimaryColor         func(childComplexity int) int
+		SectionsOrder        func(childComplexity int) int
+		ShowListeningHistory func(childComplexity int) int
+		ShowSpotifyStats     func(childComplexity int) int
 	}
 
 	Query struct {
@@ -368,6 +380,13 @@ type MutationResolver interface {
 }
 type PlaylistResolver interface {
 	Tracks(ctx context.Context, obj *model.Playlist, first *int32, after *string) (*model.TrackConnection, error)
+}
+type ProfileSettingsResolver interface {
+	PinnedAlbums(ctx context.Context, obj *model.ProfileSettings) ([]*model.Album, error)
+
+	PinnedTracks(ctx context.Context, obj *model.ProfileSettings) ([]*model.Track, error)
+
+	FeaturedArtists(ctx context.Context, obj *model.ProfileSettings) ([]*model.Artist, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
@@ -1032,6 +1051,55 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.PlaylistEdge.Node(childComplexity), true
 
+	case "ProfileSettings.accentColor":
+		if e.complexity.ProfileSettings.AccentColor == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.AccentColor(childComplexity), true
+
+	case "ProfileSettings.backgroundStyle":
+		if e.complexity.ProfileSettings.BackgroundStyle == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.BackgroundStyle(childComplexity), true
+
+	case "ProfileSettings.backgroundValue":
+		if e.complexity.ProfileSettings.BackgroundValue == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.BackgroundValue(childComplexity), true
+
+	case "ProfileSettings.bioStyle":
+		if e.complexity.ProfileSettings.BioStyle == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.BioStyle(childComplexity), true
+
+	case "ProfileSettings.customTags":
+		if e.complexity.ProfileSettings.CustomTags == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.CustomTags(childComplexity), true
+
+	case "ProfileSettings.featuredArtistIds":
+		if e.complexity.ProfileSettings.FeaturedArtistIds == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.FeaturedArtistIds(childComplexity), true
+
+	case "ProfileSettings.featuredArtists":
+		if e.complexity.ProfileSettings.FeaturedArtists == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.FeaturedArtists(childComplexity), true
+
 	case "ProfileSettings.layout":
 		if e.complexity.ProfileSettings.Layout == nil {
 			break
@@ -1046,6 +1114,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ProfileSettings.PinnedAlbumIds(childComplexity), true
 
+	case "ProfileSettings.pinnedAlbums":
+		if e.complexity.ProfileSettings.PinnedAlbums == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.PinnedAlbums(childComplexity), true
+
 	case "ProfileSettings.pinnedTrackIds":
 		if e.complexity.ProfileSettings.PinnedTrackIds == nil {
 			break
@@ -1053,12 +1128,33 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ProfileSettings.PinnedTrackIds(childComplexity), true
 
+	case "ProfileSettings.pinnedTracks":
+		if e.complexity.ProfileSettings.PinnedTracks == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.PinnedTracks(childComplexity), true
+
+	case "ProfileSettings.primaryColor":
+		if e.complexity.ProfileSettings.PrimaryColor == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.PrimaryColor(childComplexity), true
+
 	case "ProfileSettings.sectionsOrder":
 		if e.complexity.ProfileSettings.SectionsOrder == nil {
 			break
 		}
 
 		return e.complexity.ProfileSettings.SectionsOrder(childComplexity), true
+
+	case "ProfileSettings.showListeningHistory":
+		if e.complexity.ProfileSettings.ShowListeningHistory == nil {
+			break
+		}
+
+		return e.complexity.ProfileSettings.ShowListeningHistory(childComplexity), true
 
 	case "ProfileSettings.showSpotifyStats":
 		if e.complexity.ProfileSettings.ShowSpotifyStats == nil {
@@ -5955,14 +6051,36 @@ func (ec *executionContext) fieldContext_Mutation_updateProfileSettings(ctx cont
 			switch field.Name {
 			case "layout":
 				return ec.fieldContext_ProfileSettings_layout(ctx, field)
+			case "primaryColor":
+				return ec.fieldContext_ProfileSettings_primaryColor(ctx, field)
+			case "accentColor":
+				return ec.fieldContext_ProfileSettings_accentColor(ctx, field)
+			case "backgroundStyle":
+				return ec.fieldContext_ProfileSettings_backgroundStyle(ctx, field)
+			case "backgroundValue":
+				return ec.fieldContext_ProfileSettings_backgroundValue(ctx, field)
 			case "pinnedAlbumIds":
 				return ec.fieldContext_ProfileSettings_pinnedAlbumIds(ctx, field)
+			case "pinnedAlbums":
+				return ec.fieldContext_ProfileSettings_pinnedAlbums(ctx, field)
 			case "pinnedTrackIds":
 				return ec.fieldContext_ProfileSettings_pinnedTrackIds(ctx, field)
+			case "pinnedTracks":
+				return ec.fieldContext_ProfileSettings_pinnedTracks(ctx, field)
+			case "featuredArtistIds":
+				return ec.fieldContext_ProfileSettings_featuredArtistIds(ctx, field)
+			case "featuredArtists":
+				return ec.fieldContext_ProfileSettings_featuredArtists(ctx, field)
 			case "sectionsOrder":
 				return ec.fieldContext_ProfileSettings_sectionsOrder(ctx, field)
 			case "showSpotifyStats":
 				return ec.fieldContext_ProfileSettings_showSpotifyStats(ctx, field)
+			case "showListeningHistory":
+				return ec.fieldContext_ProfileSettings_showListeningHistory(ctx, field)
+			case "bioStyle":
+				return ec.fieldContext_ProfileSettings_bioStyle(ctx, field)
+			case "customTags":
+				return ec.fieldContext_ProfileSettings_customTags(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ProfileSettings", field.Name)
 		},
@@ -7549,6 +7667,170 @@ func (ec *executionContext) fieldContext_ProfileSettings_layout(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _ProfileSettings_primaryColor(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_primaryColor(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PrimaryColor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_primaryColor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_accentColor(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_accentColor(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AccentColor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_accentColor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_backgroundStyle(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_backgroundStyle(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BackgroundStyle, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.BackgroundStyle)
+	fc.Result = res
+	return ec.marshalOBackgroundStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBackgroundStyle(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_backgroundStyle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type BackgroundStyle does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_backgroundValue(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_backgroundValue(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BackgroundValue, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_backgroundValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProfileSettings_pinnedAlbumIds(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ProfileSettings_pinnedAlbumIds(ctx, field)
 	if err != nil {
@@ -7593,6 +7875,72 @@ func (ec *executionContext) fieldContext_ProfileSettings_pinnedAlbumIds(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _ProfileSettings_pinnedAlbums(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_pinnedAlbums(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.ProfileSettings().PinnedAlbums(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Album)
+	fc.Result = res
+	return ec.marshalNAlbum2ᚕᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐAlbumᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_pinnedAlbums(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Album_id(ctx, field)
+			case "spotifyID":
+				return ec.fieldContext_Album_spotifyID(ctx, field)
+			case "title":
+				return ec.fieldContext_Album_title(ctx, field)
+			case "artist":
+				return ec.fieldContext_Album_artist(ctx, field)
+			case "releaseDate":
+				return ec.fieldContext_Album_releaseDate(ctx, field)
+			case "coverImage":
+				return ec.fieldContext_Album_coverImage(ctx, field)
+			case "averageRating":
+				return ec.fieldContext_Album_averageRating(ctx, field)
+			case "tracks":
+				return ec.fieldContext_Album_tracks(ctx, field)
+			case "reviews":
+				return ec.fieldContext_Album_reviews(ctx, field)
+			case "comments":
+				return ec.fieldContext_Album_comments(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Album", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProfileSettings_pinnedTrackIds(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ProfileSettings_pinnedTrackIds(ctx, field)
 	if err != nil {
@@ -7632,6 +7980,168 @@ func (ec *executionContext) fieldContext_ProfileSettings_pinnedTrackIds(_ contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_pinnedTracks(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_pinnedTracks(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.ProfileSettings().PinnedTracks(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Track)
+	fc.Result = res
+	return ec.marshalNTrack2ᚕᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐTrackᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_pinnedTracks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Track_id(ctx, field)
+			case "spotifyID":
+				return ec.fieldContext_Track_spotifyID(ctx, field)
+			case "title":
+				return ec.fieldContext_Track_title(ctx, field)
+			case "duration":
+				return ec.fieldContext_Track_duration(ctx, field)
+			case "trackNumber":
+				return ec.fieldContext_Track_trackNumber(ctx, field)
+			case "album":
+				return ec.fieldContext_Track_album(ctx, field)
+			case "averageRating":
+				return ec.fieldContext_Track_averageRating(ctx, field)
+			case "reviews":
+				return ec.fieldContext_Track_reviews(ctx, field)
+			case "comments":
+				return ec.fieldContext_Track_comments(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Track", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_featuredArtistIds(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_featuredArtistIds(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.FeaturedArtistIds, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNID2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_featuredArtistIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_featuredArtists(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_featuredArtists(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.ProfileSettings().FeaturedArtists(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Artist)
+	fc.Result = res
+	return ec.marshalNArtist2ᚕᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐArtistᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_featuredArtists(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Artist_id(ctx, field)
+			case "spotifyID":
+				return ec.fieldContext_Artist_spotifyID(ctx, field)
+			case "name":
+				return ec.fieldContext_Artist_name(ctx, field)
+			case "albums":
+				return ec.fieldContext_Artist_albums(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Artist", field.Name)
 		},
 	}
 	return fc, nil
@@ -7720,6 +8230,135 @@ func (ec *executionContext) fieldContext_ProfileSettings_showSpotifyStats(_ cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_showListeningHistory(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_showListeningHistory(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShowListeningHistory, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_showListeningHistory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_bioStyle(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_bioStyle(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BioStyle, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.BioStyle)
+	fc.Result = res
+	return ec.marshalOBioStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBioStyle(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_bioStyle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type BioStyle does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileSettings_customTags(ctx context.Context, field graphql.CollectedField, obj *model.ProfileSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProfileSettings_customTags(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CustomTags, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProfileSettings_customTags(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -12590,14 +13229,36 @@ func (ec *executionContext) fieldContext_User_profileSettings(_ context.Context,
 			switch field.Name {
 			case "layout":
 				return ec.fieldContext_ProfileSettings_layout(ctx, field)
+			case "primaryColor":
+				return ec.fieldContext_ProfileSettings_primaryColor(ctx, field)
+			case "accentColor":
+				return ec.fieldContext_ProfileSettings_accentColor(ctx, field)
+			case "backgroundStyle":
+				return ec.fieldContext_ProfileSettings_backgroundStyle(ctx, field)
+			case "backgroundValue":
+				return ec.fieldContext_ProfileSettings_backgroundValue(ctx, field)
 			case "pinnedAlbumIds":
 				return ec.fieldContext_ProfileSettings_pinnedAlbumIds(ctx, field)
+			case "pinnedAlbums":
+				return ec.fieldContext_ProfileSettings_pinnedAlbums(ctx, field)
 			case "pinnedTrackIds":
 				return ec.fieldContext_ProfileSettings_pinnedTrackIds(ctx, field)
+			case "pinnedTracks":
+				return ec.fieldContext_ProfileSettings_pinnedTracks(ctx, field)
+			case "featuredArtistIds":
+				return ec.fieldContext_ProfileSettings_featuredArtistIds(ctx, field)
+			case "featuredArtists":
+				return ec.fieldContext_ProfileSettings_featuredArtists(ctx, field)
 			case "sectionsOrder":
 				return ec.fieldContext_ProfileSettings_sectionsOrder(ctx, field)
 			case "showSpotifyStats":
 				return ec.fieldContext_ProfileSettings_showSpotifyStats(ctx, field)
+			case "showListeningHistory":
+				return ec.fieldContext_ProfileSettings_showListeningHistory(ctx, field)
+			case "bioStyle":
+				return ec.fieldContext_ProfileSettings_bioStyle(ctx, field)
+			case "customTags":
+				return ec.fieldContext_ProfileSettings_customTags(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ProfileSettings", field.Name)
 		},
@@ -15365,7 +16026,7 @@ func (ec *executionContext) unmarshalInputUpdateProfileSettingsInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"layout", "pinnedAlbumIds", "pinnedTrackIds", "sectionsOrder", "showSpotifyStats"}
+	fieldsInOrder := [...]string{"layout", "primaryColor", "accentColor", "backgroundStyle", "backgroundValue", "pinnedAlbumIds", "pinnedTrackIds", "featuredArtistIds", "sectionsOrder", "showSpotifyStats", "showListeningHistory", "bioStyle", "customTags"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -15379,6 +16040,34 @@ func (ec *executionContext) unmarshalInputUpdateProfileSettingsInput(ctx context
 				return it, err
 			}
 			it.Layout = data
+		case "primaryColor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("primaryColor"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PrimaryColor = data
+		case "accentColor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("accentColor"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AccentColor = data
+		case "backgroundStyle":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("backgroundStyle"))
+			data, err := ec.unmarshalOBackgroundStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBackgroundStyle(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BackgroundStyle = data
+		case "backgroundValue":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("backgroundValue"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BackgroundValue = data
 		case "pinnedAlbumIds":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pinnedAlbumIds"))
 			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
@@ -15393,6 +16082,13 @@ func (ec *executionContext) unmarshalInputUpdateProfileSettingsInput(ctx context
 				return it, err
 			}
 			it.PinnedTrackIds = data
+		case "featuredArtistIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("featuredArtistIds"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FeaturedArtistIds = data
 		case "sectionsOrder":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sectionsOrder"))
 			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
@@ -15407,6 +16103,27 @@ func (ec *executionContext) unmarshalInputUpdateProfileSettingsInput(ctx context
 				return it, err
 			}
 			it.ShowSpotifyStats = data
+		case "showListeningHistory":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("showListeningHistory"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ShowListeningHistory = data
+		case "bioStyle":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bioStyle"))
+			data, err := ec.unmarshalOBioStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBioStyle(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BioStyle = data
+		case "customTags":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customTags"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomTags = data
 		}
 	}
 
@@ -16591,27 +17308,160 @@ func (ec *executionContext) _ProfileSettings(ctx context.Context, sel ast.Select
 		case "layout":
 			out.Values[i] = ec._ProfileSettings_layout(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "primaryColor":
+			out.Values[i] = ec._ProfileSettings_primaryColor(ctx, field, obj)
+		case "accentColor":
+			out.Values[i] = ec._ProfileSettings_accentColor(ctx, field, obj)
+		case "backgroundStyle":
+			out.Values[i] = ec._ProfileSettings_backgroundStyle(ctx, field, obj)
+		case "backgroundValue":
+			out.Values[i] = ec._ProfileSettings_backgroundValue(ctx, field, obj)
 		case "pinnedAlbumIds":
 			out.Values[i] = ec._ProfileSettings_pinnedAlbumIds(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "pinnedAlbums":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ProfileSettings_pinnedAlbums(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "pinnedTrackIds":
 			out.Values[i] = ec._ProfileSettings_pinnedTrackIds(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "pinnedTracks":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ProfileSettings_pinnedTracks(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "featuredArtistIds":
+			out.Values[i] = ec._ProfileSettings_featuredArtistIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "featuredArtists":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ProfileSettings_featuredArtists(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "sectionsOrder":
 			out.Values[i] = ec._ProfileSettings_sectionsOrder(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "showSpotifyStats":
 			out.Values[i] = ec._ProfileSettings_showSpotifyStats(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "showListeningHistory":
+			out.Values[i] = ec._ProfileSettings_showListeningHistory(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "bioStyle":
+			out.Values[i] = ec._ProfileSettings_bioStyle(ctx, field, obj)
+		case "customTags":
+			out.Values[i] = ec._ProfileSettings_customTags(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -18630,6 +19480,50 @@ func (ec *executionContext) marshalNAlbum2githubᚗcomᚋdaedal00ᚋmuseᚋbacke
 	return ec._Album(ctx, sel, &v)
 }
 
+func (ec *executionContext) marshalNAlbum2ᚕᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐAlbumᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Album) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAlbum2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐAlbum(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNAlbum2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐAlbum(ctx context.Context, sel ast.SelectionSet, v *model.Album) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -18769,6 +19663,50 @@ func (ec *executionContext) marshalNAlbumSearchResult2ᚖgithubᚗcomᚋdaedal00
 
 func (ec *executionContext) marshalNArtist2githubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐArtist(ctx context.Context, sel ast.SelectionSet, v model.Artist) graphql.Marshaler {
 	return ec._Artist(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNArtist2ᚕᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐArtistᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Artist) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNArtist2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐArtist(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNArtist2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐArtist(ctx context.Context, sel ast.SelectionSet, v *model.Artist) graphql.Marshaler {
@@ -20110,6 +21048,38 @@ func (ec *executionContext) marshalOAlbumSearchResult2ᚖgithubᚗcomᚋdaedal00
 		return graphql.Null
 	}
 	return ec._AlbumSearchResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOBackgroundStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBackgroundStyle(ctx context.Context, v any) (*model.BackgroundStyle, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.BackgroundStyle)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOBackgroundStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBackgroundStyle(ctx context.Context, sel ast.SelectionSet, v *model.BackgroundStyle) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOBioStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBioStyle(ctx context.Context, v any) (*model.BioStyle, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.BioStyle)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOBioStyle2ᚖgithubᚗcomᚋdaedal00ᚋmuseᚋbackendᚋgraphᚋmodelᚐBioStyle(ctx context.Context, sel ast.SelectionSet, v *model.BioStyle) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {

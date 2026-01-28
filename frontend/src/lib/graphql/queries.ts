@@ -380,6 +380,21 @@ export const GET_PROFILE = gql`
       email
       bio
       avatar
+      profileSettings {
+        layout
+        primaryColor
+        accentColor
+        backgroundStyle
+        backgroundValue
+        pinnedAlbumIds
+        pinnedTrackIds
+        featuredArtistIds
+        sectionsOrder
+        showSpotifyStats
+        showListeningHistory
+        bioStyle
+        customTags
+      }
       trackReviews(first: $trackReviewsFirst, after: $trackReviewsAfter) {
         totalCount
         edges {
@@ -516,10 +531,44 @@ export const GET_USER = gql`
       avatar
       profileSettings {
         layout
+        primaryColor
+        accentColor
+        backgroundStyle
+        backgroundValue
         pinnedAlbumIds
+        pinnedAlbums {
+          id
+          title
+          coverImage
+          artist {
+            id
+            name
+          }
+        }
         pinnedTrackIds
+        pinnedTracks {
+          id
+          title
+          album {
+            id
+            title
+            coverImage
+            artist {
+              id
+              name
+            }
+          }
+        }
+        featuredArtistIds
+        featuredArtists {
+          id
+          name
+        }
         sectionsOrder
         showSpotifyStats
+        showListeningHistory
+        bioStyle
+        customTags
       }
       reviews(first: 10) {
         totalCount

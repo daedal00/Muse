@@ -153,17 +153,18 @@ type MusicCacheRepository interface {
 
 // Repository container
 type Repositories struct {
-	User        UserRepository
-	Artist      ArtistRepository
-	Album       AlbumRepository
-	Track       TrackRepository
-	Review      ReviewRepository
-	TrackReview TrackReviewRepository
-	Playlist    PlaylistRepository
-	Spotify     SpotifyTokenRepository
-	Session     SessionRepository
-	Comment     CommentRepository
-	MusicCache  MusicCacheRepository // New: Redis music cache
+	User            UserRepository
+	Artist          ArtistRepository
+	Album           AlbumRepository
+	Track           TrackRepository
+	Review          ReviewRepository
+	TrackReview     TrackReviewRepository
+	Playlist        PlaylistRepository
+	Spotify         SpotifyTokenRepository
+	Session         SessionRepository
+	Comment         CommentRepository
+	ProfileSettings ProfileSettingsRepository
+	MusicCache      MusicCacheRepository // New: Redis music cache
 }
 
 type CommentRepository interface {
@@ -172,4 +173,10 @@ type CommentRepository interface {
 	CountByAlbumID(ctx context.Context, albumID uuid.UUID) (int, error)
 	GetByTrackID(ctx context.Context, trackID uuid.UUID, limit, offset int) ([]*models.Comment, error)
 	CountByTrackID(ctx context.Context, trackID uuid.UUID) (int, error)
+}
+
+type ProfileSettingsRepository interface {
+	GetByUserID(ctx context.Context, userID uuid.UUID) (*models.ProfileSettings, error)
+	Upsert(ctx context.Context, settings *models.ProfileSettings) error
+	Delete(ctx context.Context, userID uuid.UUID) error
 }

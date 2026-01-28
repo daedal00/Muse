@@ -74,24 +74,23 @@ export default function ProfilePage() {
     skip: !spotifyConnected,
   });
 
-  const [spotifyAuthURL, { loading: spotifyAuthLoading }] = useMutation(
-    SPOTIFY_AUTH_URL
-  );
-  const [disconnectSpotify, { loading: disconnectLoading }] = useMutation(
-    DISCONNECT_SPOTIFY
-  );
+  const [spotifyAuthURL, { loading: spotifyAuthLoading }] =
+    useMutation(SPOTIFY_AUTH_URL);
+  const [disconnectSpotify, { loading: disconnectLoading }] =
+    useMutation(DISCONNECT_SPOTIFY);
   const [importSpotifyTopTracks, { loading: importTopLoading }] = useMutation(
-    IMPORT_SPOTIFY_TOP_TRACKS
+    IMPORT_SPOTIFY_TOP_TRACKS,
   );
-  const [importSpotifySavedTracks, { loading: importSavedLoading }] = useMutation(
-    IMPORT_SPOTIFY_SAVED_TRACKS
-  );
+  const [importSpotifySavedTracks, { loading: importSavedLoading }] =
+    useMutation(IMPORT_SPOTIFY_SAVED_TRACKS);
   const [importSpotifyPlaylist] = useMutation(IMPORT_SPOTIFY_PLAYLIST);
 
   const [homePrefs, setHomePrefs] = React.useState(defaultHomePreferences);
   const [spotifyError, setSpotifyError] = React.useState<string | null>(null);
   const [importMessage, setImportMessage] = React.useState<string | null>(null);
-  const [importingPlaylist, setImportingPlaylist] = React.useState<string | null>(null);
+  const [importingPlaylist, setImportingPlaylist] = React.useState<
+    string | null
+  >(null);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
 
   React.useEffect(() => {
@@ -120,7 +119,7 @@ export default function ProfilePage() {
       }
     } catch (err) {
       setSpotifyError(
-        err instanceof Error ? err.message : "Failed to start Spotify auth"
+        err instanceof Error ? err.message : "Failed to start Spotify auth",
       );
     }
   };
@@ -132,7 +131,7 @@ export default function ProfilePage() {
       window.location.reload();
     } catch (err) {
       setSpotifyError(
-        err instanceof Error ? err.message : "Failed to disconnect Spotify"
+        err instanceof Error ? err.message : "Failed to disconnect Spotify",
       );
     }
   };
@@ -145,12 +144,12 @@ export default function ProfilePage() {
       });
       if (data?.importSpotifyTopTracks) {
         setImportMessage(
-          `Imported ${data.importSpotifyTopTracks.importedTracks} tracks.`
+          `Imported ${data.importSpotifyTopTracks.importedTracks} tracks.`,
         );
       }
     } catch (err) {
       setImportMessage(
-        err instanceof Error ? err.message : "Failed to import top tracks"
+        err instanceof Error ? err.message : "Failed to import top tracks",
       );
     }
   };
@@ -163,12 +162,12 @@ export default function ProfilePage() {
       });
       if (data?.importSpotifySavedTracks) {
         setImportMessage(
-          `Imported ${data.importSpotifySavedTracks.importedTracks} tracks.`
+          `Imported ${data.importSpotifySavedTracks.importedTracks} tracks.`,
         );
       }
     } catch (err) {
       setImportMessage(
-        err instanceof Error ? err.message : "Failed to import saved tracks"
+        err instanceof Error ? err.message : "Failed to import saved tracks",
       );
     }
   };
@@ -182,12 +181,12 @@ export default function ProfilePage() {
       });
       if (data?.importSpotifyPlaylist) {
         setImportMessage(
-          `Imported ${data.importSpotifyPlaylist.importedPlaylists} playlist.`
+          `Imported ${data.importSpotifyPlaylist.importedPlaylists} playlist.`,
         );
       }
     } catch (err) {
       setImportMessage(
-        err instanceof Error ? err.message : "Failed to import playlist"
+        err instanceof Error ? err.message : "Failed to import playlist",
       );
     } finally {
       setImportingPlaylist(null);
@@ -237,6 +236,89 @@ export default function ProfilePage() {
   const spotifySavedTracks = spotifySavedTracksData?.spotifySavedTracks ?? [];
   const spotifyPlaylists = spotifyPlaylistsData?.spotifyPlaylists ?? [];
 
+  // Extract theme settings with defaults
+  const settings = profileData?.me?.profileSettings;
+  const primaryColor = settings?.primaryColor || "#1DB954";
+  const accentColor = settings?.accentColor || "#191414";
+  const backgroundStyle = settings?.backgroundStyle || "SOLID";
+  const backgroundValue = settings?.backgroundValue || "";
+  const bioStyle = settings?.bioStyle || "MINIMAL";
+  const customTags = settings?.customTags || [];
+
+  // Generate background CSS
+  const getProfileBackground = () => {
+    if (backgroundStyle === "GRADIENT") {
+      return {
+        background:
+          backgroundValue ||
+          `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+      };
+    }
+    if (backgroundValue) {
+      return { background: backgroundValue };
+    }
+    return {
+      background: `linear-gradient(135deg, ${primaryColor}20 0%, ${accentColor}20 100%)`,
+    };
+  };
+
+  // Determine if using dark background for text contrast
+  const isGradientBg = backgroundStyle === "GRADIENT";
+
+  // Bio rendering based on style
+  const renderBio = () => {
+    const bio = profileData?.me?.bio;
+    if (!bio) return null;
+
+    if (bioStyle === "QUOTE") {
+      return (
+        <blockquote
+          className="mt-4 pl-4 border-l-4 italic"
+          style={{
+            borderColor: primaryColor,
+            color: isGradientBg ? "white" : undefined,
+          }}
+        >
+          &ldquo;{bio}&rdquo;
+        </blockquote>
+      );
+    }
+
+    if (bioStyle === "DETAILED") {
+      return (
+        <div
+          className="mt-4 p-4 rounded-xl backdrop-blur-sm"
+          style={{
+            backgroundColor: isGradientBg
+              ? "rgba(255,255,255,0.1)"
+              : `${primaryColor}10`,
+            borderColor: `${primaryColor}30`,
+            borderWidth: "1px",
+          }}
+        >
+          <p
+            className={
+              isGradientBg
+                ? "text-white/90"
+                : "text-slate-600 dark:text-slate-300"
+            }
+          >
+            {bio}
+          </p>
+        </div>
+      );
+    }
+
+    // MINIMAL
+    return (
+      <p
+        className={`mt-3 text-sm ${isGradientBg ? "text-white/80" : "text-slate-600 dark:text-slate-300"}`}
+      >
+        {bio}
+      </p>
+    );
+  };
+
   const loadMoreTrackReviews = () => {
     if (profileData?.me?.trackReviews?.pageInfo?.hasNextPage) {
       fetchMore({
@@ -268,30 +350,85 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-10">
-      <section className="card">
-        <div className="flex flex-wrap items-start justify-between gap-6">
+      {/* Profile Header with Custom Theme */}
+      <section
+        className={`rounded-2xl p-8 shadow-lg relative overflow-hidden ${
+          isGradientBg
+            ? "profile-bg-animated"
+            : "border border-slate-200/70 dark:border-slate-800/60"
+        }`}
+        style={getProfileBackground()}
+      >
+        {/* Gradient overlay for better text visibility */}
+        {isGradientBg && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+        )}
+
+        <div className="relative flex flex-wrap items-start justify-between gap-6">
           <div className="flex items-start gap-5">
             {profileData?.me?.avatar ? (
               <img
                 src={profileData.me.avatar}
                 alt={profileData.me.name}
-                className="h-20 w-20 rounded-full object-cover"
+                className="h-24 w-24 rounded-full object-cover shadow-xl"
+                style={{
+                  border: `4px solid ${isGradientBg ? "rgba(255,255,255,0.3)" : primaryColor}`,
+                  boxShadow: `0 10px 30px ${primaryColor}40`,
+                }}
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-2xl font-bold text-white">
+              <div
+                className="flex h-24 w-24 items-center justify-center rounded-full text-3xl font-bold text-white shadow-xl"
+                style={{
+                  background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+                  border: "4px solid rgba(255,255,255,0.3)",
+                  boxShadow: `0 10px 30px ${primaryColor}40`,
+                }}
+              >
                 {profileData?.me?.name?.charAt(0)?.toUpperCase() || "?"}
               </div>
             )}
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              <p
+                className={`text-xs uppercase tracking-[0.2em] ${
+                  isGradientBg ? "text-white/60" : "text-slate-400"
+                }`}
+              >
                 Profile
               </p>
-              <h1 className="text-3xl font-semibold mt-2">{profileData?.me?.name}</h1>
-              <p className="muted mt-2">{profileData?.me?.email}</p>
-              {profileData?.me?.bio && (
-                <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                  {profileData.me.bio}
-                </p>
+              <h1
+                className={`text-3xl font-semibold mt-2 ${isGradientBg ? "text-white" : ""}`}
+                style={!isGradientBg ? { color: primaryColor } : {}}
+              >
+                {profileData?.me?.name}
+              </h1>
+              <p className={`mt-1 ${isGradientBg ? "text-white/70" : "muted"}`}>
+                {profileData?.me?.email}
+              </p>
+              {renderBio()}
+
+              {/* Custom Tags */}
+              {customTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {customTags.map((tag: string) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
+                      style={{
+                        backgroundColor: isGradientBg
+                          ? "rgba(255,255,255,0.2)"
+                          : `${primaryColor}20`,
+                        color: isGradientBg ? "white" : primaryColor,
+                        borderColor: isGradientBg
+                          ? "rgba(255,255,255,0.3)"
+                          : primaryColor,
+                        borderWidth: "1px",
+                      }}
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -299,12 +436,25 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setShowProfileEditor(true)}
-              className="btn-secondary"
+              className={`px-5 py-2 rounded-full font-semibold text-sm transition-all ${
+                isGradientBg
+                  ? "bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 border border-white/30"
+                  : "btn-secondary"
+              }`}
+              style={
+                !isGradientBg
+                  ? { borderColor: primaryColor, color: primaryColor }
+                  : {}
+              }
             >
               Edit Profile
             </button>
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              <p>Track ratings: {profileData?.me?.trackReviews?.totalCount ?? 0}</p>
+            <div
+              className={`text-sm ${isGradientBg ? "text-white/70" : "text-slate-500 dark:text-slate-400"}`}
+            >
+              <p>
+                Track ratings: {profileData?.me?.trackReviews?.totalCount ?? 0}
+              </p>
             </div>
           </div>
         </div>
@@ -375,7 +525,13 @@ export default function ProfilePage() {
       <section className="card">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold">Recent track ratings</h2>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <span
+                className="w-1 h-5 rounded-full"
+                style={{ backgroundColor: primaryColor }}
+              />
+              Recent track ratings
+            </h2>
             <p className="muted">Your latest track reviews.</p>
           </div>
         </div>
@@ -611,9 +767,7 @@ export default function ProfilePage() {
                         )}
                         <div>
                           <p className="text-sm font-medium">{playlist.name}</p>
-                          <p className="muted">
-                            {playlist.trackCount} tracks
-                          </p>
+                          <p className="muted">{playlist.trackCount} tracks</p>
                         </div>
                       </div>
                       <button
@@ -646,7 +800,7 @@ export default function ProfilePage() {
             bio: profileData.me.bio,
             avatar: profileData.me.avatar,
           }}
-          settings={null}
+          settings={profileData.me.profileSettings}
           onClose={() => setShowProfileEditor(false)}
           onSave={() => {
             setShowProfileEditor(false);

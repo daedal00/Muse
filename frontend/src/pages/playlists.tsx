@@ -36,7 +36,9 @@ export default function PlaylistsPage() {
 
       {error && (
         <div className="card">
-          <h3 className="text-lg font-semibold mb-2">Error Loading Playlists</h3>
+          <h3 className="text-lg font-semibold mb-2">
+            Error Loading Playlists
+          </h3>
           <p className="text-rose-500">{error.message}</p>
           <p className="text-sm text-rose-400 mt-2">
             {error.message.includes('relation "playlists" does not exist') ||
@@ -57,7 +59,7 @@ export default function PlaylistsPage() {
 
           {data.playlists.edges.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {data.playlists.edges.map(({ node: playlist }) => (
+              {data.playlists.edges.map(({ node: playlist }: { node: any }) => (
                 <Link
                   key={playlist.id}
                   href={`/playlists/${playlist.id}`}
@@ -84,7 +86,10 @@ export default function PlaylistsPage() {
                   )}
                   <div className="text-sm text-slate-500 dark:text-slate-400">
                     <p>
-                      by <span className="font-medium">{playlist.creator.name}</span>
+                      by{" "}
+                      <span className="font-medium">
+                        {playlist.creator.name}
+                      </span>
                     </p>
                   </div>
                 </Link>
@@ -114,7 +119,6 @@ export default function PlaylistsPage() {
           )}
         </div>
       )}
-
     </div>
   );
 }

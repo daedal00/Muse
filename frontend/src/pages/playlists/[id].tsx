@@ -133,7 +133,7 @@ export default function PlaylistDetailPage() {
 
         {tracks.length > 0 ? (
           <div className="space-y-1">
-            {tracks.map(({ node: track }, index) => (
+            {tracks.map(({ node: track }: { node: any }, index: number) => (
               <Link
                 key={track.id}
                 href={`/tracks/${track.id}`}
