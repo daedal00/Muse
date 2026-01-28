@@ -60,6 +60,42 @@ func (r *albumRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Al
 	return album, nil
 }
 
+func (r *albumRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Album, error) {
+	if len(ids) == 0 {
+		return []*models.Album{}, nil
+	}
+
+	query := `
+		SELECT id, spotify_id, title, artist_id, release_date, cover_image, created_at, updated_at
+		FROM albums
+		WHERE id = ANY($1)
+	`
+
+	rows, err := r.db.Pool.Query(ctx, query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get albums: %w", err)
+	}
+	defer rows.Close()
+
+	var albums []*models.Album
+	for rows.Next() {
+		album := &models.Album{}
+		if err := rows.Scan(
+			&album.ID, &album.SpotifyID, &album.Title, &album.ArtistID,
+			&album.ReleaseDate, &album.CoverImage, &album.CreatedAt, &album.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan album: %w", err)
+		}
+		albums = append(albums, album)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating albums: %w", err)
+	}
+
+	return albums, nil
+}
+
 func (r *albumRepository) GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Album, error) {
 	query := `
 		SELECT id, spotify_id, title, artist_id, release_date, cover_image, created_at, updated_at
@@ -116,6 +152,17 @@ func (r *albumRepository) GetByArtistID(ctx context.Context, artistID uuid.UUID,
 	}
 
 	return albums, nil
+}
+
+func (r *albumRepository) CountByArtistID(ctx context.Context, artistID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM albums WHERE artist_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, artistID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count albums by artist: %w", err)
+	}
+
+	return count, nil
 }
 
 func (r *albumRepository) Update(ctx context.Context, album *models.Album) error {
@@ -187,4 +234,15 @@ func (r *albumRepository) List(ctx context.Context, limit, offset int) ([]*model
 	}
 
 	return albums, nil
+}
+
+func (r *albumRepository) Count(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM albums`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count albums: %w", err)
+	}
+
+	return count, nil
 }

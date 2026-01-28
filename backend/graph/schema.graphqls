@@ -5,6 +5,11 @@ enum ExternalSource {
   MUSICBRAINZ
 }
 
+directive @goField(
+  forceResolver: Boolean
+  name: String
+) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
 # -----------------------------------------------------------
 # Core Domain Types
 # -----------------------------------------------------------
@@ -15,8 +20,27 @@ type User {
   email: String!
   bio: String
   avatar: String
-  playlists: PlaylistConnection!
-  reviews: ReviewConnection!
+  profileSettings: ProfileSettings @goField(forceResolver: true)
+  playlists(first: Int, after: String): PlaylistConnection!
+    @goField(forceResolver: true)
+  reviews(first: Int, after: String): ReviewConnection!
+    @goField(forceResolver: true)
+  trackReviews(first: Int, after: String): TrackReviewConnection!
+    @goField(forceResolver: true)
+}
+
+enum ProfileLayout {
+  GRID
+  LIST
+  BENTO
+}
+
+type ProfileSettings {
+  layout: ProfileLayout!
+  pinnedAlbumIds: [ID!]!
+  pinnedTrackIds: [ID!]!
+  sectionsOrder: [String!]!
+  showSpotifyStats: Boolean!
 }
 
 type Album {
@@ -26,15 +50,19 @@ type Album {
   artist: Artist!
   releaseDate: DateTime
   coverImage: String # From spotify or S3 if overridden
-  tracks: TrackConnection!
-  reviews: ReviewConnection!
+  averageRating: Float @goField(forceResolver: true)
+  tracks(first: Int, after: String): TrackConnection!
+    @goField(forceResolver: true)
+  reviews(first: Int, after: String): ReviewConnection!
+    @goField(forceResolver: true)
 }
 
 type Artist {
   id: ID!
   spotifyID: String # Spotify specific ID
   name: String!
-  albums: AlbumConnection!
+  albums(first: Int, after: String): AlbumConnection!
+    @goField(forceResolver: true)
 }
 
 type Track {
@@ -44,6 +72,9 @@ type Track {
   duration: Int # Duration in seconds
   trackNumber: Int
   album: Album!
+  averageRating: Float @goField(forceResolver: true)
+  reviews(first: Int, after: String): TrackReviewConnection!
+    @goField(forceResolver: true)
 }
 
 type Review {
@@ -55,14 +86,53 @@ type Review {
   createdAt: DateTime!
 }
 
+type TrackReview {
+  id: ID!
+  user: User!
+  track: Track!
+  rating: Int!
+  reviewText: String
+  createdAt: DateTime!
+}
+
 type Playlist {
   id: ID!
   title: String!
   description: String
   coverImage: String # url stored in S3 bucket
-  tracks: TrackConnection!
+  tracks(first: Int, after: String): TrackConnection!
+    @goField(forceResolver: true)
   creator: User!
   createdAt: DateTime!
+}
+
+type TrackInsight {
+  track: Track!
+  averageRating: Float!
+  reviewCount: Int!
+}
+
+type SpotifyAuthStatus {
+  connected: Boolean!
+  expiresAt: DateTime
+  scope: String
+  displayName: String
+}
+
+type SpotifyPlaylistResult {
+  id: ID!
+  name: String!
+  description: String
+  coverImage: String
+  ownerName: String
+  trackCount: Int!
+  externalSource: ExternalSource!
+}
+
+type ImportSummary {
+  importedTracks: Int!
+  importedAlbums: Int!
+  importedPlaylists: Int!
 }
 
 # ---------------------------------------
@@ -102,6 +172,17 @@ type ReviewEdge {
   node: Review!
 }
 
+type TrackReviewConnection {
+  totalCount: Int!
+  edges: [TrackReviewEdge!]!
+  pageInfo: PageInfo!
+}
+
+type TrackReviewEdge {
+  cursor: String!
+  node: TrackReview!
+}
+
 type PlaylistConnection {
   totalCount: Int!
   edges: [PlaylistEdge!]!
@@ -111,6 +192,17 @@ type PlaylistConnection {
 type PlaylistEdge {
   cursor: String!
   node: Playlist!
+}
+
+type UserConnection {
+  totalCount: Int!
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserEdge {
+  cursor: String!
+  node: User!
 }
 
 type PageInfo {
@@ -165,6 +257,24 @@ input ArtistSearchInput {
   source: ExternalSource = SPOTIFY
 }
 
+input TrackSearchInput {
+  query: String!
+  limit: Int
+  offset: Int
+  source: ExternalSource = SPOTIFY
+}
+
+enum TopTrackSort {
+  RATING
+  REVIEWS
+}
+
+enum SpotifyTimeRange {
+  SHORT_TERM
+  MEDIUM_TERM
+  LONG_TERM
+}
+
 # ---------------------------------------
 # Query Type – Core and External Searches
 # ---------------------------------------
@@ -172,6 +282,7 @@ input ArtistSearchInput {
 type Query {
   me: User
   user(id: ID!): User
+  users(first: Int, after: String): UserConnection!
 
   albums(first: Int, after: String): AlbumConnection!
   album(id: ID!): Album
@@ -185,11 +296,31 @@ type Query {
   reviews(first: Int, after: String): ReviewConnection!
   review(id: ID!): Review
 
+  trackReviews(first: Int, after: String): TrackReviewConnection!
+  trackReview(id: ID!): TrackReview
+
+  topTracks(limit: Int = 10, sort: TopTrackSort = RATING): [TrackInsight!]!
+  favoriteTracks(limit: Int = 10, minRating: Int = 4): [TrackReview!]!
+
   # User activity queries
   recentlyPlayed(limit: Int = 20): [Track!]! # User's recently played tracks from cache
   # External Search Queries
   searchAlbums(input: AlbumSearchInput!): [AlbumSearchResult!]!
   searchArtists(input: ArtistSearchInput!): [ArtistSearchResult!]!
+  searchTracks(input: TrackSearchInput!): [TrackSearchResult!]!
+
+  # Spotify user data
+  spotifyStatus: SpotifyAuthStatus!
+  spotifyTopTracks(
+    limit: Int = 10
+    timeRange: SpotifyTimeRange = MEDIUM_TERM
+  ): [TrackSearchResult!]!
+  spotifySavedTracks(limit: Int = 20, offset: Int = 0): [TrackSearchResult!]!
+  spotifyPlaylists(limit: Int = 20, offset: Int = 0): [SpotifyPlaylistResult!]!
+
+  # Spotify preview queries - view without storing to DB
+  spotifyAlbum(spotifyID: String!): AlbumSearchResult
+  spotifyTrack(spotifyID: String!): TrackSearchResult
 }
 
 # ---------------------------------------
@@ -202,20 +333,96 @@ input CreateReviewInput {
   reviewText: String
 }
 
+input CreateTrackReviewInput {
+  trackId: ID!
+  rating: Int!
+  reviewText: String
+}
+
 input CreatePlaylistInput {
   title: String!
   description: String
   coverImage: String
 }
 
+input UpdateProfileSettingsInput {
+  layout: ProfileLayout
+  pinnedAlbumIds: [ID!]
+  pinnedTrackIds: [ID!]
+  sectionsOrder: [String!]
+  showSpotifyStats: Boolean
+}
+
+input UpdateProfileInput {
+  name: String
+  bio: String
+  avatar: String
+}
+
 type Mutation {
   createUser(name: String!, email: String!, password: String!): User!
   login(email: String!, password: String!): String! # Returns simple token (UserID)
+  updateProfile(input: UpdateProfileInput!): User!
+  updateProfileSettings(input: UpdateProfileSettingsInput!): ProfileSettings!
   createReview(input: CreateReviewInput!): Review!
+  createTrackReview(input: CreateTrackReviewInput!): TrackReview!
   createPlaylist(input: CreatePlaylistInput!): Playlist!
   addTrackToPlaylist(playlistId: ID!, trackId: ID!): Playlist!
+  importAlbum(spotifyAlbumID: ID!): Album!
+  importArtist(spotifyArtistID: ID!): Artist!
+  importTrack(spotifyTrackID: ID!): Track!
+  spotifyAuthURL(redirectURI: String): String!
+  disconnectSpotify: Boolean!
+  importSpotifyTopTracks(
+    limit: Int = 20
+    timeRange: SpotifyTimeRange = MEDIUM_TERM
+  ): ImportSummary!
+  importSpotifySavedTracks(limit: Int = 20, offset: Int = 0): ImportSummary!
+  importSpotifyPlaylist(spotifyPlaylistID: ID!): ImportSummary!
 }
 
 type Subscription {
   reviewAdded(albumId: ID!): Review!
+}
+
+# ---------------------------------------
+# Comments (General Discussion)
+# ---------------------------------------
+
+type Comment {
+  id: ID!
+  user: User! @goField(forceResolver: true)
+  content: String!
+  createdAt: DateTime!
+}
+
+type CommentConnection {
+  totalCount: Int!
+  edges: [CommentEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CommentEdge {
+  cursor: String!
+  node: Comment!
+}
+
+extend type Album {
+  comments(first: Int, after: String): CommentConnection!
+    @goField(forceResolver: true)
+}
+
+extend type Track {
+  comments(first: Int, after: String): CommentConnection!
+    @goField(forceResolver: true)
+}
+
+input CreateCommentInput {
+  albumId: ID
+  trackId: ID
+  content: String!
+}
+
+extend type Mutation {
+  createComment(input: CreateCommentInput!): Comment!
 }

@@ -4,6 +4,7 @@ import {
   createHttpLink,
   from,
 } from "@apollo/client";
+import { relayStylePagination } from "@apollo/client/utilities";
 import { setContext } from "@apollo/client/link/context";
 
 const httpLink = createHttpLink({
@@ -25,7 +26,17 @@ const authLink = setContext((_, { headers }) => {
 
 export const apolloClient = new ApolloClient({
   link: from([authLink, httpLink]),
-  cache: new InMemoryCache(),
+  cache: new InMemoryCache({
+    typePolicies: {
+      Query: {
+        fields: {
+          albums: relayStylePagination(),
+          reviews: relayStylePagination(),
+          playlists: relayStylePagination(),
+        },
+      },
+    },
+  }),
   defaultOptions: {
     watchQuery: {
       errorPolicy: "all",

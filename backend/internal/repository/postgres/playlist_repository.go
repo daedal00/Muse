@@ -21,12 +21,12 @@ func NewPlaylistRepository(db *database.PostgresDB) repository.PlaylistRepositor
 
 func (r *playlistRepository) Create(ctx context.Context, playlist *models.Playlist) error {
 	query := `
-		INSERT INTO playlists (id, title, description, cover_image, creator_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO playlists (id, spotify_id, title, description, cover_image, creator_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.db.Pool.Exec(ctx, query,
-		playlist.ID, playlist.Title, playlist.Description, playlist.CoverImage,
+		playlist.ID, playlist.SpotifyID, playlist.Title, playlist.Description, playlist.CoverImage,
 		playlist.CreatorID, playlist.CreatedAt, playlist.UpdatedAt,
 	)
 
@@ -39,14 +39,14 @@ func (r *playlistRepository) Create(ctx context.Context, playlist *models.Playli
 
 func (r *playlistRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Playlist, error) {
 	query := `
-		SELECT id, title, description, cover_image, creator_id, created_at, updated_at
+		SELECT id, spotify_id, title, description, cover_image, creator_id, created_at, updated_at
 		FROM playlists 
 		WHERE id = $1
 	`
 
 	playlist := &models.Playlist{}
 	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
-		&playlist.ID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
+		&playlist.ID, &playlist.SpotifyID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
 		&playlist.CreatorID, &playlist.CreatedAt, &playlist.UpdatedAt,
 	)
 
@@ -60,9 +60,31 @@ func (r *playlistRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 	return playlist, nil
 }
 
+func (r *playlistRepository) GetBySpotifyID(ctx context.Context, spotifyID string) (*models.Playlist, error) {
+	query := `
+		SELECT id, spotify_id, title, description, cover_image, creator_id, created_at, updated_at
+		FROM playlists
+		WHERE spotify_id = $1
+	`
+
+	playlist := &models.Playlist{}
+	err := r.db.Pool.QueryRow(ctx, query, spotifyID).Scan(
+		&playlist.ID, &playlist.SpotifyID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
+		&playlist.CreatorID, &playlist.CreatedAt, &playlist.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("playlist not found")
+		}
+		return nil, fmt.Errorf("failed to get playlist by spotify id: %w", err)
+	}
+
+	return playlist, nil
+}
+
 func (r *playlistRepository) GetByCreatorID(ctx context.Context, creatorID uuid.UUID, limit, offset int) ([]*models.Playlist, error) {
 	query := `
-		SELECT id, title, description, cover_image, creator_id, created_at, updated_at
+		SELECT id, spotify_id, title, description, cover_image, creator_id, created_at, updated_at
 		FROM playlists 
 		WHERE creator_id = $1
 		ORDER BY created_at DESC
@@ -79,7 +101,7 @@ func (r *playlistRepository) GetByCreatorID(ctx context.Context, creatorID uuid.
 	for rows.Next() {
 		playlist := &models.Playlist{}
 		err := rows.Scan(
-			&playlist.ID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
+			&playlist.ID, &playlist.SpotifyID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
 			&playlist.CreatorID, &playlist.CreatedAt, &playlist.UpdatedAt,
 		)
 		if err != nil {
@@ -95,15 +117,26 @@ func (r *playlistRepository) GetByCreatorID(ctx context.Context, creatorID uuid.
 	return playlists, nil
 }
 
+func (r *playlistRepository) CountByCreatorID(ctx context.Context, creatorID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM playlists WHERE creator_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, creatorID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count playlists by creator: %w", err)
+	}
+
+	return count, nil
+}
+
 func (r *playlistRepository) Update(ctx context.Context, playlist *models.Playlist) error {
 	query := `
 		UPDATE playlists 
-		SET title = $2, description = $3, cover_image = $4, updated_at = NOW()
+		SET spotify_id = $2, title = $3, description = $4, cover_image = $5, updated_at = NOW()
 		WHERE id = $1
 	`
 
 	result, err := r.db.Pool.Exec(ctx, query,
-		playlist.ID, playlist.Title, playlist.Description, playlist.CoverImage,
+		playlist.ID, playlist.SpotifyID, playlist.Title, playlist.Description, playlist.CoverImage,
 	)
 
 	if err != nil {
@@ -150,7 +183,7 @@ func (r *playlistRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *playlistRepository) List(ctx context.Context, limit, offset int) ([]*models.Playlist, error) {
 	query := `
-		SELECT id, title, description, cover_image, creator_id, created_at, updated_at
+		SELECT id, spotify_id, title, description, cover_image, creator_id, created_at, updated_at
 		FROM playlists 
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -166,7 +199,7 @@ func (r *playlistRepository) List(ctx context.Context, limit, offset int) ([]*mo
 	for rows.Next() {
 		playlist := &models.Playlist{}
 		err := rows.Scan(
-			&playlist.ID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
+			&playlist.ID, &playlist.SpotifyID, &playlist.Title, &playlist.Description, &playlist.CoverImage,
 			&playlist.CreatorID, &playlist.CreatedAt, &playlist.UpdatedAt,
 		)
 		if err != nil {
@@ -180,6 +213,17 @@ func (r *playlistRepository) List(ctx context.Context, limit, offset int) ([]*mo
 	}
 
 	return playlists, nil
+}
+
+func (r *playlistRepository) Count(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM playlists`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count playlists: %w", err)
+	}
+
+	return count, nil
 }
 
 // Playlist track operations
@@ -294,6 +338,17 @@ func (r *playlistRepository) GetTracks(ctx context.Context, playlistID uuid.UUID
 	}
 
 	return tracks, nil
+}
+
+func (r *playlistRepository) CountTracks(ctx context.Context, playlistID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = $1`
+
+	var count int
+	if err := r.db.Pool.QueryRow(ctx, query, playlistID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count playlist tracks: %w", err)
+	}
+
+	return count, nil
 }
 
 func (r *playlistRepository) ReorderTracks(ctx context.Context, playlistID uuid.UUID, trackPositions map[uuid.UUID]int) error {

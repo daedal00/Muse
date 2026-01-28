@@ -75,6 +75,7 @@ type Review struct {
 // Playlist represents a user's playlist
 type Playlist struct {
 	ID          uuid.UUID `json:"id" db:"id"`
+	SpotifyID   *string   `json:"spotify_id" db:"spotify_id"`
 	Title       string    `json:"title" db:"title"`
 	Description *string   `json:"description" db:"description"`
 	CoverImage  *string   `json:"cover_image" db:"cover_image"`
@@ -84,6 +85,41 @@ type Playlist struct {
 
 	// Relations
 	Creator *User `json:"creator,omitempty"`
+}
+
+// TrackReview represents a user's review of a track
+type TrackReview struct {
+	ID         uuid.UUID `json:"id" db:"id"`
+	UserID     uuid.UUID `json:"user_id" db:"user_id"`
+	TrackID    uuid.UUID `json:"track_id" db:"track_id"`
+	Rating     int       `json:"rating" db:"rating"`
+	ReviewText *string   `json:"review_text" db:"review_text"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
+
+	// Relations
+	User  *User  `json:"user,omitempty"`
+	Track *Track `json:"track,omitempty"`
+}
+
+// TrackReviewSummary represents aggregated rating data for a track
+type TrackReviewSummary struct {
+	TrackID       uuid.UUID `json:"track_id" db:"track_id"`
+	AverageRating float64   `json:"average_rating" db:"average_rating"`
+	ReviewCount   int       `json:"review_count" db:"review_count"`
+}
+
+// SpotifyToken stores OAuth tokens for a user
+type SpotifyToken struct {
+	UserID        uuid.UUID `json:"user_id" db:"user_id"`
+	SpotifyUserID *string   `json:"spotify_user_id" db:"spotify_user_id"`
+	AccessToken   string    `json:"access_token" db:"access_token"`
+	RefreshToken  string    `json:"refresh_token" db:"refresh_token"`
+	TokenType     *string   `json:"token_type" db:"token_type"`
+	Scope         *string   `json:"scope" db:"scope"`
+	ExpiresAt     time.Time `json:"expires_at" db:"expires_at"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // PlaylistTrack represents the many-to-many relationship between playlists and tracks

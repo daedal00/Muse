@@ -7,13 +7,14 @@ A **production-ready** GraphQL-based music discovery and review platform backend
 The backend is **nearly complete** and **fully functional**:
 
 - ✅ **All Core Features Implemented**: Users, Artists, Albums, Tracks, Reviews, Playlists
+- ✅ **Track Reviews**: Separate ratings and optional notes for tracks
 - ✅ **Database Layer**: Complete with comprehensive testing (all tests passing)
-- ✅ **GraphQL API**: Schema and most resolvers implemented
+- ✅ **GraphQL API**: Schema and resolvers implemented
 - ✅ **Authentication**: JWT-based with Redis session management
-- ✅ **Spotify Integration**: Search and music data retrieval
+- ✅ **Spotify Integration**: Search, user OAuth, and import flows
 - ✅ **Production Ready**: Docker, CI/CD, comprehensive error handling
 
-**Only 6 GraphQL resolvers remaining** (Track, Tracks, Playlist, Playlists, Review, Reviews) - following established patterns.
+**Remaining work** focuses on production hardening and performance tuning.
 
 ## 🏗️ Architecture
 
@@ -64,7 +65,7 @@ Redis serves two primary purposes in the backend:
    - Reduces PostgreSQL load for read-heavy operations
    - Improves API response times
 
-**Note**: Redis is **optional** - the backend gracefully handles Redis unavailability and will continue to function without caching.
+**Note**: Redis is **optional** - the backend will continue without cache/subscription pubsub.
 
 ## 🚀 Quick Start
 
@@ -73,7 +74,7 @@ Redis serves two primary purposes in the backend:
 - **Go 1.24+**
 - **PostgreSQL** (NeonDB recommended for cloud)
 - **Redis** (optional, for optimal performance)
-- **Spotify Developer Account**
+- **Spotify Developer Account** (optional, for search)
 
 ### 1. Environment Setup
 
@@ -83,12 +84,16 @@ Create `.env` file:
 # Database (NeonDB recommended)
 DATABASE_URL=postgresql://username:password@ep-example.us-east-1.aws.neon.tech/neondb?sslmode=require
 
-# Redis (optional - will work without)
+# Redis (optional)
 REDIS_URL=redis://localhost:6379
 
-# Spotify API
+# Spotify API (optional)
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SPOTIFY_REDIRECT_URL=http://localhost:8080/spotify/callback
+
+# Frontend URL (for CORS + OAuth redirects)
+FRONTEND_URL=http://localhost:3000
 
 # JWT Security
 JWT_SECRET=your-super-secret-jwt-key-here
@@ -129,8 +134,10 @@ go run server.go
 - **albums**: Albums with metadata and cover art
 - **tracks**: Individual songs with duration and track numbers
 - **reviews**: User ratings (1-5) and text reviews for albums
+- **track_reviews**: User ratings (1-5) and optional text for tracks
 - **playlists**: User-created collections of tracks
 - **playlist_tracks**: Many-to-many relationship between playlists and tracks
+- **spotify_tokens**: OAuth tokens for Spotify import flows
 
 ### Key Features
 
@@ -188,18 +195,9 @@ if err != nil {
 go run github.com/99designs/gqlgen generate
 ```
 
-## 🔄 Remaining Work (Minimal)
+## 🔄 Remaining Work (Targeted)
 
-Only **6 GraphQL resolvers** need implementation following existing patterns:
-
-1. `Track(id: ID!)` - Get single track
-2. `Tracks(first: Int, after: String)` - List tracks with pagination
-3. `Playlist(id: ID!)` - Get single playlist
-4. `Playlists(first: Int, after: String)` - List playlists with pagination
-5. `Review(id: ID!)` - Get single review
-6. `Reviews(first: Int, after: String)` - List reviews with pagination
-
-**All repository methods are already implemented and tested** - just need to wire them to GraphQL.
+1. Add dataloaders for nested fields if query volume grows
 
 ## 🐳 Docker Deployment
 
@@ -257,9 +255,9 @@ PORT=8080
 
 ### Immediate (< 1 day)
 
-1. **Complete remaining 6 GraphQL resolvers** (copy existing patterns)
-2. **Deploy to production** (backend is ready)
-3. **Set up monitoring** (health endpoints exist)
+1. **Deploy to production** (backend is ready)
+2. **Set up monitoring** (health endpoints exist)
+3. **Load test** to establish baseline performance
 
 ### Frontend Development
 

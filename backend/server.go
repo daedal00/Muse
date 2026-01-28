@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -19,7 +20,10 @@ import (
 	"github.com/daedal00/muse/backend/auth"
 	"github.com/daedal00/muse/backend/graph"
 	"github.com/daedal00/muse/backend/internal/config"
+	"github.com/daedal00/muse/backend/internal/models"
+	spotifyinternal "github.com/daedal00/muse/backend/internal/spotify"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -62,13 +66,13 @@ func (rw *responseWriter) WriteHeader(code int) {
 }
 
 // CORS middleware to handle cross-origin requests
-func corsMiddleware(next http.Handler) http.Handler {
+func corsMiddleware(allowedOrigin string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		log.Printf("[CORS] Request from origin: %s", origin)
 
 		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -95,6 +99,8 @@ func main() {
 		log.Fatalf("[ERROR] Failed to load configuration: %v", err)
 	}
 	log.Printf("[CONFIG] Server will run on port %s in %s environment", cfg.Port, cfg.Environment)
+	log.Printf("[CONFIG] Spotify Redirect URL: %s", cfg.SpotifyRedirectURL)
+	log.Printf("[CONFIG] Frontend URL: %s", cfg.FrontendURL)
 
 	// Initialize resolver with database and Redis connections
 	log.Println("[INIT] Initializing database and Redis connections...")
@@ -131,7 +137,7 @@ func main() {
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 
 	// Wrap query with CORS, logging, and auth middleware
-	http.Handle("/query", corsMiddleware(loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("/query", corsMiddleware(cfg.FrontendURL, loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract raw authorization header
 		authHeader := r.Header.Get("Authorization")
 		baseCtx := r.Context()
@@ -182,8 +188,125 @@ func main() {
 		srv.ServeHTTP(w, r.WithContext(newCtx))
 	}))))
 
+	http.Handle("/spotify/callback", corsMiddleware(cfg.FrontendURL, loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if errParam := query.Get("error"); errParam != "" {
+			redirect := cfg.FrontendURL
+			if redirect != "" {
+				if redirectURL, err := url.Parse(redirect); err == nil {
+					values := redirectURL.Query()
+					values.Set("spotify", "error")
+					values.Set("reason", errParam)
+					redirectURL.RawQuery = values.Encode()
+					http.Redirect(w, r, redirectURL.String(), http.StatusFound)
+					return
+				}
+			}
+			http.Error(w, "spotify authorization failed", http.StatusBadRequest)
+			return
+		}
+
+		code := query.Get("code")
+		state := query.Get("state")
+		if code == "" || state == "" {
+			http.Error(w, "missing code or state", http.StatusBadRequest)
+			return
+		}
+
+		claims := &graph.SpotifyStateClaims{}
+		parsedToken, err := jwt.ParseWithClaims(state, claims, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method")
+			}
+			return []byte(cfg.JWTSecret), nil
+		})
+		if err != nil || !parsedToken.Valid {
+			http.Error(w, "invalid state", http.StatusBadRequest)
+			return
+		}
+
+		userID, err := uuid.Parse(claims.UserID)
+		if err != nil {
+			http.Error(w, "invalid user id", http.StatusBadRequest)
+			return
+		}
+
+		if cfg.SpotifyClientID == "" || cfg.SpotifyClientSecret == "" {
+			http.Error(w, "spotify not configured", http.StatusBadRequest)
+			return
+		}
+
+		spotifyClient := spotifyinternal.NewClient(spotifyinternal.Config{
+			ClientID:     cfg.SpotifyClientID,
+			ClientSecret: cfg.SpotifyClientSecret,
+			RedirectURL:  cfg.SpotifyRedirectURL,
+			Scopes:       graph.SpotifyUserScopes(),
+		})
+
+		oauthToken, err := spotifyClient.ExchangeCode(r.Context(), code)
+		if err != nil {
+			http.Error(w, "failed to exchange spotify code", http.StatusBadRequest)
+			return
+		}
+
+		spotifyUserID := (*string)(nil)
+		client := spotifyClient.GetAuthorizedClient(r.Context(), oauthToken)
+		services := spotifyinternal.NewServices(client)
+		profile, err := services.User.GetCurrentUser(r.Context())
+		if err == nil {
+			id := string(profile.ID)
+			spotifyUserID = &id
+		}
+
+		var tokenType *string
+		if oauthToken.TokenType != "" {
+			val := oauthToken.TokenType
+			tokenType = &val
+		}
+
+		var scope *string
+		if rawScope := oauthToken.Extra("scope"); rawScope != nil {
+			if scopeStr, ok := rawScope.(string); ok {
+				scope = &scopeStr
+			}
+		}
+
+		now := time.Now()
+		dbToken := &models.SpotifyToken{
+			UserID:        userID,
+			SpotifyUserID: spotifyUserID,
+			AccessToken:   oauthToken.AccessToken,
+			RefreshToken:  oauthToken.RefreshToken,
+			TokenType:     tokenType,
+			Scope:         scope,
+			ExpiresAt:     oauthToken.Expiry,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		if err := resolver.Repos().Spotify.Upsert(r.Context(), dbToken); err != nil {
+			http.Error(w, "failed to save spotify token", http.StatusInternalServerError)
+			return
+		}
+
+		redirect := resolver.SanitizeRedirectURI(claims.RedirectURI)
+		if redirect == "" {
+			redirect = cfg.FrontendURL
+		}
+
+		redirectURL, err := url.Parse(redirect)
+		if err != nil {
+			http.Redirect(w, r, cfg.FrontendURL, http.StatusFound)
+			return
+		}
+		values := redirectURL.Query()
+		values.Set("spotify", "connected")
+		redirectURL.RawQuery = values.Encode()
+		http.Redirect(w, r, redirectURL.String(), http.StatusFound)
+	}))))
+
 	// Add health check endpoint with CORS and logging
-	http.Handle("/health", corsMiddleware(loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("/health", corsMiddleware(cfg.FrontendURL, loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[HEALTH] Health check requested")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -203,13 +326,32 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("🚀 Server ready at http://localhost:%s/", cfg.Port)
-		log.Printf("🕹  GraphQL playground at http://localhost:%s/", cfg.Port)
-		log.Printf("💚 Health check at http://localhost:%s/health", cfg.Port)
-		log.Printf("📊 Accepting requests from http://localhost:3000 (CORS enabled)")
+		protocol := "http"
+		certFile := "certs/server.crt"
+		keyFile := "certs/server.key"
+		useTLS := false
 
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("[ERROR] Failed to start server: %v", err)
+		if _, err := os.Stat(certFile); err == nil {
+			if _, err := os.Stat(keyFile); err == nil {
+				useTLS = true
+				protocol = "https"
+			}
+		}
+
+		log.Printf("🚀 Server ready at %s://localhost:%s/", protocol, cfg.Port)
+		log.Printf("🕹  GraphQL playground at %s://localhost:%s/", protocol, cfg.Port)
+		log.Printf("💚 Health check at %s://localhost:%s/health", protocol, cfg.Port)
+		log.Printf("📊 Accepting requests from %s (CORS enabled)", cfg.FrontendURL)
+
+		if useTLS {
+			log.Println("🔒 SSL/TLS Enabled using local certificates")
+			if err := server.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("[ERROR] Failed to start server: %v", err)
+			}
+		} else {
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("[ERROR] Failed to start server: %v", err)
+			}
 		}
 	}()
 

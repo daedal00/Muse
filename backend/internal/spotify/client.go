@@ -17,6 +17,8 @@ type Client struct {
 	auth         *spotifyauth.Authenticator
 	clientID     string
 	clientSecret string
+	redirectURL  string
+	scopes       []string
 }
 
 // Config holds the configuration for the Spotify client
@@ -32,12 +34,16 @@ func NewClient(config Config) *Client {
 	auth := spotifyauth.New(
 		spotifyauth.WithRedirectURL(config.RedirectURL),
 		spotifyauth.WithScopes(config.Scopes...),
+		spotifyauth.WithClientID(config.ClientID),
+		spotifyauth.WithClientSecret(config.ClientSecret),
 	)
 
 	return &Client{
 		auth:         auth,
 		clientID:     config.ClientID,
 		clientSecret: config.ClientSecret,
+		redirectURL:  config.RedirectURL,
+		scopes:       config.Scopes,
 	}
 }
 
@@ -85,6 +91,33 @@ func (c *Client) GetClientCredentialsClient(ctx context.Context) (*spotify.Clien
 
 	httpClient := spotifyauth.New().Client(ctx, token)
 	return spotify.New(httpClient), nil
+}
+
+// GetUserClient returns a client using an authorization token with refresh support.
+func (c *Client) GetUserClient(ctx context.Context, token *oauth2.Token) (*spotify.Client, *oauth2.Token, error) {
+	if token == nil {
+		return nil, nil, fmt.Errorf("token is required")
+	}
+
+	cfg := &oauth2.Config{
+		ClientID:     c.clientID,
+		ClientSecret: c.clientSecret,
+		RedirectURL:  c.redirectURL,
+		Scopes:       c.scopes,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  spotifyauth.AuthURL,
+			TokenURL: spotifyauth.TokenURL,
+		},
+	}
+
+	ts := cfg.TokenSource(ctx, token)
+	refreshed, err := ts.Token()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to refresh spotify token: %w", err)
+	}
+
+	httpClient := oauth2.NewClient(ctx, oauth2.ReuseTokenSource(refreshed, ts))
+	return spotify.New(httpClient), refreshed, nil
 }
 
 // GetAuthorizedClient returns a client from an authorization code (for user-specific data)

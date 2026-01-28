@@ -26,10 +26,10 @@ type MusicData struct {
 
 // SearchCacheData represents cached search results
 type SearchCacheData struct {
-	Query      string      `json:"query"`
-	Results    interface{} `json:"results"` // Can be albums, tracks, or artists
-	Timestamp  time.Time   `json:"timestamp"`
-	ResultType string      `json:"result_type"` // "albums", "tracks", "artists"
+	Query      string          `json:"query"`
+	Results    json.RawMessage `json:"results"`
+	Timestamp  time.Time       `json:"timestamp"`
+	ResultType string          `json:"result_type"` // "albums", "tracks", "artists"
 }
 
 // ListeningHistory represents a user's listening activity
@@ -136,9 +136,14 @@ func (r *MusicCacheRepository) AddToRecentlyPlayed(ctx context.Context, userID u
 func (r *MusicCacheRepository) SetSearchResults(ctx context.Context, query string, resultType string, results interface{}) error {
 	key := fmt.Sprintf("search:%s:%s", resultType, query)
 
+	encodedResults, err := json.Marshal(results)
+	if err != nil {
+		return fmt.Errorf("failed to marshal search results: %w", err)
+	}
+
 	cacheData := SearchCacheData{
 		Query:      query,
-		Results:    results,
+		Results:    encodedResults,
 		Timestamp:  time.Now(),
 		ResultType: resultType,
 	}

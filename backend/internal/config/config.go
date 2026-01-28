@@ -16,6 +16,8 @@ type Config struct {
 	// Spotify
 	SpotifyClientID     string
 	SpotifyClientSecret string
+	SpotifyRedirectURL  string
+	FrontendURL         string
 
 	// Database
 	DatabaseURL string
@@ -74,6 +76,8 @@ func Load() (*Config, error) {
 
 		SpotifyClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
 		SpotifyClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+		SpotifyRedirectURL:  getEnv("SPOTIFY_REDIRECT_URL", "http://localhost:8080/spotify/callback"),
+		FrontendURL:         getEnv("FRONTEND_URL", "http://localhost:3000"),
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		DBHost:      getEnv("DB_HOST", "localhost"),
@@ -100,12 +104,6 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.SpotifyClientID == "" {
-		return fmt.Errorf("SPOTIFY_CLIENT_ID is required")
-	}
-	if c.SpotifyClientSecret == "" {
-		return fmt.Errorf("SPOTIFY_CLIENT_SECRET is required")
-	}
 	if c.DatabaseURL == "" && c.DBPassword == "" {
 		return fmt.Errorf("either DATABASE_URL or DB_PASSWORD must be provided")
 	}

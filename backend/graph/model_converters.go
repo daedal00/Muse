@@ -80,7 +80,7 @@ func dbTrackToGraphQL(dbTrack *models.Track) *model.Track {
 
 	var duration *int32
 	if dbTrack.DurationMs != nil {
-		val := safeIntToInt32(*dbTrack.DurationMs)
+		val := safeIntToInt32(*dbTrack.DurationMs / 1000)
 		duration = &val
 	}
 
@@ -109,6 +109,21 @@ func dbReviewToGraphQL(dbReview *models.Review) *model.Review {
 		ID:         dbReview.ID.String(),
 		User:       dbUserToGraphQL(dbReview.User),
 		Album:      dbAlbumToGraphQL(dbReview.Album),
+		Rating:     safeIntToInt32(dbReview.Rating),
+		ReviewText: dbReview.ReviewText,
+		CreatedAt:  dbReview.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+func dbTrackReviewToGraphQL(dbReview *models.TrackReview) *model.TrackReview {
+	if dbReview == nil {
+		return nil
+	}
+
+	return &model.TrackReview{
+		ID:         dbReview.ID.String(),
+		User:       dbUserToGraphQL(dbReview.User),
+		Track:      dbTrackToGraphQL(dbReview.Track),
 		Rating:     safeIntToInt32(dbReview.Rating),
 		ReviewText: dbReview.ReviewText,
 		CreatedAt:  dbReview.CreatedAt.Format(time.RFC3339),

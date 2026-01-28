@@ -7,17 +7,21 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+
+	"github.com/daedal00/muse/backend/internal/models"
 )
 
 type Album struct {
-	ID          string            `json:"id"`
-	SpotifyID   *string           `json:"spotifyID,omitempty"`
-	Title       string            `json:"title"`
-	Artist      *Artist           `json:"artist"`
-	ReleaseDate *string           `json:"releaseDate,omitempty"`
-	CoverImage  *string           `json:"coverImage,omitempty"`
-	Tracks      *TrackConnection  `json:"tracks"`
-	Reviews     *ReviewConnection `json:"reviews"`
+	ID            string             `json:"id"`
+	SpotifyID     *string            `json:"spotifyID,omitempty"`
+	Title         string             `json:"title"`
+	Artist        *Artist            `json:"artist"`
+	ReleaseDate   *string            `json:"releaseDate,omitempty"`
+	CoverImage    *string            `json:"coverImage,omitempty"`
+	AverageRating *float64           `json:"averageRating,omitempty"`
+	Tracks        *TrackConnection   `json:"tracks"`
+	Reviews       *ReviewConnection  `json:"reviews"`
+	Comments      *CommentConnection `json:"comments"`
 }
 
 type AlbumConnection struct {
@@ -67,6 +71,23 @@ type ArtistSearchResult struct {
 	ExternalSource ExternalSource `json:"externalSource"`
 }
 
+type CommentConnection struct {
+	TotalCount int32          `json:"totalCount"`
+	Edges      []*CommentEdge `json:"edges"`
+	PageInfo   *PageInfo      `json:"pageInfo"`
+}
+
+type CommentEdge struct {
+	Cursor string          `json:"cursor"`
+	Node   *models.Comment `json:"node"`
+}
+
+type CreateCommentInput struct {
+	AlbumID *string `json:"albumId,omitempty"`
+	TrackID *string `json:"trackId,omitempty"`
+	Content string  `json:"content"`
+}
+
 type CreatePlaylistInput struct {
 	Title       string  `json:"title"`
 	Description *string `json:"description,omitempty"`
@@ -77,6 +98,18 @@ type CreateReviewInput struct {
 	AlbumID    string  `json:"albumId"`
 	Rating     int32   `json:"rating"`
 	ReviewText *string `json:"reviewText,omitempty"`
+}
+
+type CreateTrackReviewInput struct {
+	TrackID    string  `json:"trackId"`
+	Rating     int32   `json:"rating"`
+	ReviewText *string `json:"reviewText,omitempty"`
+}
+
+type ImportSummary struct {
+	ImportedTracks    int32 `json:"importedTracks"`
+	ImportedAlbums    int32 `json:"importedAlbums"`
+	ImportedPlaylists int32 `json:"importedPlaylists"`
 }
 
 type Mutation struct {
@@ -108,6 +141,14 @@ type PlaylistEdge struct {
 	Node   *Playlist `json:"node"`
 }
 
+type ProfileSettings struct {
+	Layout           ProfileLayout `json:"layout"`
+	PinnedAlbumIds   []string      `json:"pinnedAlbumIds"`
+	PinnedTrackIds   []string      `json:"pinnedTrackIds"`
+	SectionsOrder    []string      `json:"sectionsOrder"`
+	ShowSpotifyStats bool          `json:"showSpotifyStats"`
+}
+
 type Query struct {
 }
 
@@ -131,16 +172,36 @@ type ReviewEdge struct {
 	Node   *Review `json:"node"`
 }
 
+type SpotifyAuthStatus struct {
+	Connected   bool    `json:"connected"`
+	ExpiresAt   *string `json:"expiresAt,omitempty"`
+	Scope       *string `json:"scope,omitempty"`
+	DisplayName *string `json:"displayName,omitempty"`
+}
+
+type SpotifyPlaylistResult struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Description    *string        `json:"description,omitempty"`
+	CoverImage     *string        `json:"coverImage,omitempty"`
+	OwnerName      *string        `json:"ownerName,omitempty"`
+	TrackCount     int32          `json:"trackCount"`
+	ExternalSource ExternalSource `json:"externalSource"`
+}
+
 type Subscription struct {
 }
 
 type Track struct {
-	ID          string  `json:"id"`
-	SpotifyID   *string `json:"spotifyID,omitempty"`
-	Title       string  `json:"title"`
-	Duration    *int32  `json:"duration,omitempty"`
-	TrackNumber *int32  `json:"trackNumber,omitempty"`
-	Album       *Album  `json:"album"`
+	ID            string                 `json:"id"`
+	SpotifyID     *string                `json:"spotifyID,omitempty"`
+	Title         string                 `json:"title"`
+	Duration      *int32                 `json:"duration,omitempty"`
+	TrackNumber   *int32                 `json:"trackNumber,omitempty"`
+	Album         *Album                 `json:"album"`
+	AverageRating *float64               `json:"averageRating,omitempty"`
+	Reviews       *TrackReviewConnection `json:"reviews"`
+	Comments      *CommentConnection     `json:"comments"`
 }
 
 type TrackConnection struct {
@@ -154,6 +215,39 @@ type TrackEdge struct {
 	Node   *Track `json:"node"`
 }
 
+type TrackInsight struct {
+	Track         *Track  `json:"track"`
+	AverageRating float64 `json:"averageRating"`
+	ReviewCount   int32   `json:"reviewCount"`
+}
+
+type TrackReview struct {
+	ID         string  `json:"id"`
+	User       *User   `json:"user"`
+	Track      *Track  `json:"track"`
+	Rating     int32   `json:"rating"`
+	ReviewText *string `json:"reviewText,omitempty"`
+	CreatedAt  string  `json:"createdAt"`
+}
+
+type TrackReviewConnection struct {
+	TotalCount int32              `json:"totalCount"`
+	Edges      []*TrackReviewEdge `json:"edges"`
+	PageInfo   *PageInfo          `json:"pageInfo"`
+}
+
+type TrackReviewEdge struct {
+	Cursor string       `json:"cursor"`
+	Node   *TrackReview `json:"node"`
+}
+
+type TrackSearchInput struct {
+	Query  string          `json:"query"`
+	Limit  *int32          `json:"limit,omitempty"`
+	Offset *int32          `json:"offset,omitempty"`
+	Source *ExternalSource `json:"source,omitempty"`
+}
+
 type TrackSearchResult struct {
 	ID             string                `json:"id"`
 	Title          string                `json:"title"`
@@ -164,14 +258,41 @@ type TrackSearchResult struct {
 	ExternalSource ExternalSource        `json:"externalSource"`
 }
 
+type UpdateProfileInput struct {
+	Name   *string `json:"name,omitempty"`
+	Bio    *string `json:"bio,omitempty"`
+	Avatar *string `json:"avatar,omitempty"`
+}
+
+type UpdateProfileSettingsInput struct {
+	Layout           *ProfileLayout `json:"layout,omitempty"`
+	PinnedAlbumIds   []string       `json:"pinnedAlbumIds,omitempty"`
+	PinnedTrackIds   []string       `json:"pinnedTrackIds,omitempty"`
+	SectionsOrder    []string       `json:"sectionsOrder,omitempty"`
+	ShowSpotifyStats *bool          `json:"showSpotifyStats,omitempty"`
+}
+
 type User struct {
-	ID        string              `json:"id"`
-	Name      string              `json:"name"`
-	Email     string              `json:"email"`
-	Bio       *string             `json:"bio,omitempty"`
-	Avatar    *string             `json:"avatar,omitempty"`
-	Playlists *PlaylistConnection `json:"playlists"`
-	Reviews   *ReviewConnection   `json:"reviews"`
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Email           string                 `json:"email"`
+	Bio             *string                `json:"bio,omitempty"`
+	Avatar          *string                `json:"avatar,omitempty"`
+	ProfileSettings *ProfileSettings       `json:"profileSettings,omitempty"`
+	Playlists       *PlaylistConnection    `json:"playlists"`
+	Reviews         *ReviewConnection      `json:"reviews"`
+	TrackReviews    *TrackReviewConnection `json:"trackReviews"`
+}
+
+type UserConnection struct {
+	TotalCount int32       `json:"totalCount"`
+	Edges      []*UserEdge `json:"edges"`
+	PageInfo   *PageInfo   `json:"pageInfo"`
+}
+
+type UserEdge struct {
+	Cursor string `json:"cursor"`
+	Node   *User  `json:"node"`
 }
 
 type ExternalSource string
@@ -224,6 +345,175 @@ func (e *ExternalSource) UnmarshalJSON(b []byte) error {
 }
 
 func (e ExternalSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProfileLayout string
+
+const (
+	ProfileLayoutGrid  ProfileLayout = "GRID"
+	ProfileLayoutList  ProfileLayout = "LIST"
+	ProfileLayoutBento ProfileLayout = "BENTO"
+)
+
+var AllProfileLayout = []ProfileLayout{
+	ProfileLayoutGrid,
+	ProfileLayoutList,
+	ProfileLayoutBento,
+}
+
+func (e ProfileLayout) IsValid() bool {
+	switch e {
+	case ProfileLayoutGrid, ProfileLayoutList, ProfileLayoutBento:
+		return true
+	}
+	return false
+}
+
+func (e ProfileLayout) String() string {
+	return string(e)
+}
+
+func (e *ProfileLayout) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProfileLayout(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProfileLayout", str)
+	}
+	return nil
+}
+
+func (e ProfileLayout) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProfileLayout) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProfileLayout) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SpotifyTimeRange string
+
+const (
+	SpotifyTimeRangeShortTerm  SpotifyTimeRange = "SHORT_TERM"
+	SpotifyTimeRangeMediumTerm SpotifyTimeRange = "MEDIUM_TERM"
+	SpotifyTimeRangeLongTerm   SpotifyTimeRange = "LONG_TERM"
+)
+
+var AllSpotifyTimeRange = []SpotifyTimeRange{
+	SpotifyTimeRangeShortTerm,
+	SpotifyTimeRangeMediumTerm,
+	SpotifyTimeRangeLongTerm,
+}
+
+func (e SpotifyTimeRange) IsValid() bool {
+	switch e {
+	case SpotifyTimeRangeShortTerm, SpotifyTimeRangeMediumTerm, SpotifyTimeRangeLongTerm:
+		return true
+	}
+	return false
+}
+
+func (e SpotifyTimeRange) String() string {
+	return string(e)
+}
+
+func (e *SpotifyTimeRange) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SpotifyTimeRange(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SpotifyTimeRange", str)
+	}
+	return nil
+}
+
+func (e SpotifyTimeRange) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SpotifyTimeRange) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SpotifyTimeRange) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TopTrackSort string
+
+const (
+	TopTrackSortRating  TopTrackSort = "RATING"
+	TopTrackSortReviews TopTrackSort = "REVIEWS"
+)
+
+var AllTopTrackSort = []TopTrackSort{
+	TopTrackSortRating,
+	TopTrackSortReviews,
+}
+
+func (e TopTrackSort) IsValid() bool {
+	switch e {
+	case TopTrackSortRating, TopTrackSortReviews:
+		return true
+	}
+	return false
+}
+
+func (e TopTrackSort) String() string {
+	return string(e)
+}
+
+func (e *TopTrackSort) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TopTrackSort(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TopTrackSort", str)
+	}
+	return nil
+}
+
+func (e TopTrackSort) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TopTrackSort) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TopTrackSort) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

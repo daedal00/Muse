@@ -12,6 +12,8 @@ func TestLoadConfig(t *testing.T) {
 	os.Setenv("JWT_SECRET", "test-secret")
 	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
 	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
+	os.Setenv("SPOTIFY_REDIRECT_URL", "http://localhost:8080/spotify/callback")
+	os.Setenv("FRONTEND_URL", "http://localhost:3000")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
 
 	defer func() {
@@ -20,6 +22,8 @@ func TestLoadConfig(t *testing.T) {
 		os.Unsetenv("JWT_SECRET")
 		os.Unsetenv("SPOTIFY_CLIENT_ID")
 		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
+		os.Unsetenv("SPOTIFY_REDIRECT_URL")
+		os.Unsetenv("FRONTEND_URL")
 		os.Unsetenv("DATABASE_URL")
 	}()
 
@@ -39,17 +43,21 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.JWTSecret != "test-secret" {
 		t.Errorf("Expected JWT secret test-secret, got %s", cfg.JWTSecret)
 	}
+
+	if cfg.SpotifyRedirectURL != "http://localhost:8080/spotify/callback" {
+		t.Errorf("Expected Spotify redirect URL set, got %s", cfg.SpotifyRedirectURL)
+	}
+
+	if cfg.FrontendURL != "http://localhost:3000" {
+		t.Errorf("Expected frontend URL set, got %s", cfg.FrontendURL)
+	}
 }
 
 func TestConfigDefaults(t *testing.T) {
 	// Set required environment variables
-	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
-	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
 
 	defer func() {
-		os.Unsetenv("SPOTIFY_CLIENT_ID")
-		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
 		os.Unsetenv("DATABASE_URL")
 	}()
 
@@ -65,6 +73,14 @@ func TestConfigDefaults(t *testing.T) {
 
 	if cfg.Environment != "development" {
 		t.Errorf("Expected default environment development, got %s", cfg.Environment)
+	}
+
+	if cfg.SpotifyRedirectURL != "http://localhost:8080/spotify/callback" {
+		t.Errorf("Expected default Spotify redirect URL, got %s", cfg.SpotifyRedirectURL)
+	}
+
+	if cfg.FrontendURL != "http://localhost:3000" {
+		t.Errorf("Expected default frontend URL, got %s", cfg.FrontendURL)
 	}
 }
 
@@ -83,16 +99,12 @@ func BenchmarkLoadConfig(b *testing.B) {
 	os.Setenv("PORT", "8080")
 	os.Setenv("ENVIRONMENT", "test")
 	os.Setenv("JWT_SECRET", "test-secret")
-	os.Setenv("SPOTIFY_CLIENT_ID", "test-client-id")
-	os.Setenv("SPOTIFY_CLIENT_SECRET", "test-client-secret")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost/test")
 
 	defer func() {
 		os.Unsetenv("PORT")
 		os.Unsetenv("ENVIRONMENT")
 		os.Unsetenv("JWT_SECRET")
-		os.Unsetenv("SPOTIFY_CLIENT_ID")
-		os.Unsetenv("SPOTIFY_CLIENT_SECRET")
 		os.Unsetenv("DATABASE_URL")
 	}()
 

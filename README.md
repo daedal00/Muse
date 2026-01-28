@@ -6,11 +6,13 @@ A music discovery and review platform inspired by Letterboxd, but for music. Rat
 
 Muse allows users to:
 
-- **Rate and review albums** (1-5 stars) with detailed reviews
+- **Rate and review albums and tracks** (1-5 stars) with detailed reviews
 - **Create and share playlists** with other users
 - **Discover new music** through personalized recommendations
 - **Track your musical journey** with a personal "My Muse" profile
 - **Search and explore** artists, albums, and tracks via Spotify integration
+- **Import Spotify stats** (top tracks, saved tracks, playlists) into Muse
+- **Personalize the homepage** with favorites, top tracks, and playlists
 - **Convert playlists** between different streaming services (planned)
 
 ## 🏗️ Current Architecture
@@ -20,14 +22,14 @@ Muse allows users to:
 - **GraphQL API** built with Go and `gqlgen`
 - **PostgreSQL** database for all persistent data
 - **Redis** for session management and caching (optional)
-- **Spotify API integration** for music data and search
+- **Spotify API integration** for music data and search (optional for non-search use cases)
 - **JWT Authentication** for secure user sessions
 - **Docker support** for easy deployment
 
-### Frontend (Planned)
+### Frontend (Implemented for API Testing)
 
-- **React (TypeScript)** for web application
-- **React Native** for mobile apps
+- **Next.js (TypeScript)** API testing UI (basic pages)
+- **React Native** for mobile apps (planned)
 
 ## 📁 Project Structure
 
@@ -43,7 +45,7 @@ Muse/
 │   │   └── spotify/        # Spotify API integration
 │   ├── migrations/         # Database migrations
 │   └── server.go          # Main application entry
-├── frontend/               # React frontend (planned)
+├── frontend/               # Next.js frontend (API testing UI)
 └── mobile/                # React Native app (planned)
 ```
 
@@ -52,23 +54,29 @@ Muse/
 ### ✅ Completed Backend Features
 
 - **Core Data Models**: Users, Artists, Albums, Tracks, Reviews, Playlists
+- **Track Reviews**: Star ratings and optional notes for tracks
+- **Spotify OAuth**: User-authenticated Spotify stats and imports
 - **GraphQL API**: Complete schema with all core types and operations
 - **Database Layer**: Full CRUD operations for all entities
 - **Authentication**: JWT-based user authentication
 - **Spotify Integration**: Search artists, albums, and tracks
-- **Session Management**: Redis-based session storage
+- **Session Management**: Redis repositories implemented (JWT flow does not persist sessions yet)
 - **Comprehensive Testing**: All repositories tested and working
 - **CI/CD Pipeline**: GitHub Actions with testing and deployment
 
 ### 🔧 Backend - Nearly Complete
 
-- **GraphQL Resolvers**: 90% complete, few remaining resolvers to finish
+- **GraphQL Resolvers**: Core queries/mutations implemented
 - **Pagination**: Cursor-based pagination implemented
 - **Error Handling**: Comprehensive error handling throughout
 
+### ⚠️ Known Gaps
+
+- **Product UI**: The current frontend is a testing harness, not a full UX
+
 ### 📋 Planned Features
 
-- **Frontend Development**: React web application
+- **Frontend Development**: Product UI (current frontend is a testing harness)
 - **Mobile App**: React Native for iOS/Android
 - **Playlist Conversion**: Convert playlists between streaming services
 - **Advanced Recommendations**: ML-based music recommendations
@@ -86,7 +94,7 @@ Muse/
 | **External APIs**  | Spotify Web API                | ✅ Implemented |
 | **Testing**        | Go testing + integration tests | ✅ Implemented |
 | **CI/CD**          | GitHub Actions                 | ✅ Implemented |
-| **Frontend**       | React (TypeScript)             | 🔄 Planned     |
+| **Frontend**       | Next.js (TypeScript)           | ✅ Implemented |
 | **Mobile**         | React Native                   | 🔄 Planned     |
 | **Deployment**     | Docker + Kubernetes            | 🔄 Planned     |
 
@@ -117,7 +125,9 @@ Muse/
 - **Albums**: Album metadata, cover art, release information
 - **Tracks**: Individual songs with duration, track numbers
 - **Reviews**: User ratings and reviews for albums
+- **Track Reviews**: User ratings and optional notes for tracks
 - **Playlists**: User-created track collections
+- **Spotify Tokens**: Stored OAuth tokens for user imports
 
 ### Relationships
 
@@ -133,6 +143,7 @@ Muse/
 ```bash
 cd backend
 go mod tidy
+go run cmd/migrate/main.go up
 go run server.go
 ```
 
@@ -153,7 +164,7 @@ Once running, visit `http://localhost:8080` for the GraphQL playground.
 
 ### Immediate (Backend Completion)
 
-1. **Finish remaining GraphQL resolvers** (Track, Tracks, Playlist, Playlists, Reviews, Review)
+1. **Product UI**: Replace the testing harness with full UX flows
 2. **Set up production database** (NeonDB or similar)
 3. **Deploy backend** to production environment
 

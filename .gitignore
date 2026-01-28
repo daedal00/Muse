@@ -80,6 +80,7 @@ generated/
 
 # Node modules (in case there are any frontend dependencies)
 node_modules/
+.next/
 
 # Package files
 *.deb
@@ -157,3 +158,8 @@ tramp
 # Application specific
 muse
 /muse 
+/.gocache
+/.gomodcache
+/.gopath
+
+frontend/.next/
