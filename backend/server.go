@@ -99,6 +99,8 @@ func main() {
 		log.Fatalf("[ERROR] Failed to load configuration: %v", err)
 	}
 	log.Printf("[CONFIG] Server will run on port %s in %s environment", cfg.Port, cfg.Environment)
+	log.Printf("[CONFIG] Spotify Redirect URL: %s", cfg.SpotifyRedirectURL)
+	log.Printf("[CONFIG] Frontend URL: %s", cfg.FrontendURL)
 
 	// Initialize resolver with database and Redis connections
 	log.Println("[INIT] Initializing database and Redis connections...")
@@ -324,13 +326,32 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("🚀 Server ready at http://localhost:%s/", cfg.Port)
-		log.Printf("🕹  GraphQL playground at http://localhost:%s/", cfg.Port)
-		log.Printf("💚 Health check at http://localhost:%s/health", cfg.Port)
+		protocol := "http"
+		certFile := "certs/server.crt"
+		keyFile := "certs/server.key"
+		useTLS := false
+
+		if _, err := os.Stat(certFile); err == nil {
+			if _, err := os.Stat(keyFile); err == nil {
+				useTLS = true
+				protocol = "https"
+			}
+		}
+
+		log.Printf("🚀 Server ready at %s://localhost:%s/", protocol, cfg.Port)
+		log.Printf("🕹  GraphQL playground at %s://localhost:%s/", protocol, cfg.Port)
+		log.Printf("💚 Health check at %s://localhost:%s/health", protocol, cfg.Port)
 		log.Printf("📊 Accepting requests from %s (CORS enabled)", cfg.FrontendURL)
 
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("[ERROR] Failed to start server: %v", err)
+		if useTLS {
+			log.Println("🔒 SSL/TLS Enabled using local certificates")
+			if err := server.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("[ERROR] Failed to start server: %v", err)
+			}
+		} else {
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("[ERROR] Failed to start server: %v", err)
+			}
 		}
 	}()
 

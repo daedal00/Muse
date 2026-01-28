@@ -5,7 +5,10 @@ enum ExternalSource {
   MUSICBRAINZ
 }
 
-directive @goField(forceResolver: Boolean, name: String) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+directive @goField(
+  forceResolver: Boolean
+  name: String
+) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 
 # -----------------------------------------------------------
 # Core Domain Types
@@ -18,9 +21,12 @@ type User {
   bio: String
   avatar: String
   profileSettings: ProfileSettings @goField(forceResolver: true)
-  playlists(first: Int, after: String): PlaylistConnection! @goField(forceResolver: true)
-  reviews(first: Int, after: String): ReviewConnection! @goField(forceResolver: true)
-  trackReviews(first: Int, after: String): TrackReviewConnection! @goField(forceResolver: true)
+  playlists(first: Int, after: String): PlaylistConnection!
+    @goField(forceResolver: true)
+  reviews(first: Int, after: String): ReviewConnection!
+    @goField(forceResolver: true)
+  trackReviews(first: Int, after: String): TrackReviewConnection!
+    @goField(forceResolver: true)
 }
 
 enum ProfileLayout {
@@ -45,15 +51,18 @@ type Album {
   releaseDate: DateTime
   coverImage: String # From spotify or S3 if overridden
   averageRating: Float @goField(forceResolver: true)
-  tracks(first: Int, after: String): TrackConnection! @goField(forceResolver: true)
-  reviews(first: Int, after: String): ReviewConnection! @goField(forceResolver: true)
+  tracks(first: Int, after: String): TrackConnection!
+    @goField(forceResolver: true)
+  reviews(first: Int, after: String): ReviewConnection!
+    @goField(forceResolver: true)
 }
 
 type Artist {
   id: ID!
   spotifyID: String # Spotify specific ID
   name: String!
-  albums(first: Int, after: String): AlbumConnection! @goField(forceResolver: true)
+  albums(first: Int, after: String): AlbumConnection!
+    @goField(forceResolver: true)
 }
 
 type Track {
@@ -64,7 +73,8 @@ type Track {
   trackNumber: Int
   album: Album!
   averageRating: Float @goField(forceResolver: true)
-  reviews(first: Int, after: String): TrackReviewConnection! @goField(forceResolver: true)
+  reviews(first: Int, after: String): TrackReviewConnection!
+    @goField(forceResolver: true)
 }
 
 type Review {
@@ -90,7 +100,8 @@ type Playlist {
   title: String!
   description: String
   coverImage: String # url stored in S3 bucket
-  tracks(first: Int, after: String): TrackConnection! @goField(forceResolver: true)
+  tracks(first: Int, after: String): TrackConnection!
+    @goField(forceResolver: true)
   creator: User!
   createdAt: DateTime!
 }
@@ -300,7 +311,10 @@ type Query {
 
   # Spotify user data
   spotifyStatus: SpotifyAuthStatus!
-  spotifyTopTracks(limit: Int = 10, timeRange: SpotifyTimeRange = MEDIUM_TERM): [TrackSearchResult!]!
+  spotifyTopTracks(
+    limit: Int = 10
+    timeRange: SpotifyTimeRange = MEDIUM_TERM
+  ): [TrackSearchResult!]!
   spotifySavedTracks(limit: Int = 20, offset: Int = 0): [TrackSearchResult!]!
   spotifyPlaylists(limit: Int = 20, offset: Int = 0): [SpotifyPlaylistResult!]!
 
@@ -359,11 +373,56 @@ type Mutation {
   importTrack(spotifyTrackID: ID!): Track!
   spotifyAuthURL(redirectURI: String): String!
   disconnectSpotify: Boolean!
-  importSpotifyTopTracks(limit: Int = 20, timeRange: SpotifyTimeRange = MEDIUM_TERM): ImportSummary!
+  importSpotifyTopTracks(
+    limit: Int = 20
+    timeRange: SpotifyTimeRange = MEDIUM_TERM
+  ): ImportSummary!
   importSpotifySavedTracks(limit: Int = 20, offset: Int = 0): ImportSummary!
   importSpotifyPlaylist(spotifyPlaylistID: ID!): ImportSummary!
 }
 
 type Subscription {
   reviewAdded(albumId: ID!): Review!
+}
+
+# ---------------------------------------
+# Comments (General Discussion)
+# ---------------------------------------
+
+type Comment {
+  id: ID!
+  user: User! @goField(forceResolver: true)
+  content: String!
+  createdAt: DateTime!
+}
+
+type CommentConnection {
+  totalCount: Int!
+  edges: [CommentEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CommentEdge {
+  cursor: String!
+  node: Comment!
+}
+
+extend type Album {
+  comments(first: Int, after: String): CommentConnection!
+    @goField(forceResolver: true)
+}
+
+extend type Track {
+  comments(first: Int, after: String): CommentConnection!
+    @goField(forceResolver: true)
+}
+
+input CreateCommentInput {
+  albumId: ID
+  trackId: ID
+  content: String!
+}
+
+extend type Mutation {
+  createComment(input: CreateCommentInput!): Comment!
 }

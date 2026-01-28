@@ -7,18 +7,21 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+
+	"github.com/daedal00/muse/backend/internal/models"
 )
 
 type Album struct {
-	ID            string            `json:"id"`
-	SpotifyID     *string           `json:"spotifyID,omitempty"`
-	Title         string            `json:"title"`
-	Artist        *Artist           `json:"artist"`
-	ReleaseDate   *string           `json:"releaseDate,omitempty"`
-	CoverImage    *string           `json:"coverImage,omitempty"`
-	AverageRating *float64          `json:"averageRating,omitempty"`
-	Tracks        *TrackConnection  `json:"tracks"`
-	Reviews       *ReviewConnection `json:"reviews"`
+	ID            string             `json:"id"`
+	SpotifyID     *string            `json:"spotifyID,omitempty"`
+	Title         string             `json:"title"`
+	Artist        *Artist            `json:"artist"`
+	ReleaseDate   *string            `json:"releaseDate,omitempty"`
+	CoverImage    *string            `json:"coverImage,omitempty"`
+	AverageRating *float64           `json:"averageRating,omitempty"`
+	Tracks        *TrackConnection   `json:"tracks"`
+	Reviews       *ReviewConnection  `json:"reviews"`
+	Comments      *CommentConnection `json:"comments"`
 }
 
 type AlbumConnection struct {
@@ -66,6 +69,23 @@ type ArtistSearchResult struct {
 	ID             string         `json:"id"`
 	Name           string         `json:"name"`
 	ExternalSource ExternalSource `json:"externalSource"`
+}
+
+type CommentConnection struct {
+	TotalCount int32          `json:"totalCount"`
+	Edges      []*CommentEdge `json:"edges"`
+	PageInfo   *PageInfo      `json:"pageInfo"`
+}
+
+type CommentEdge struct {
+	Cursor string          `json:"cursor"`
+	Node   *models.Comment `json:"node"`
+}
+
+type CreateCommentInput struct {
+	AlbumID *string `json:"albumId,omitempty"`
+	TrackID *string `json:"trackId,omitempty"`
+	Content string  `json:"content"`
 }
 
 type CreatePlaylistInput struct {
@@ -181,6 +201,7 @@ type Track struct {
 	Album         *Album                 `json:"album"`
 	AverageRating *float64               `json:"averageRating,omitempty"`
 	Reviews       *TrackReviewConnection `json:"reviews"`
+	Comments      *CommentConnection     `json:"comments"`
 }
 
 type TrackConnection struct {

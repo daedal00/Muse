@@ -179,3 +179,17 @@ export const UPDATE_PROFILE_SETTINGS = gql`
     }
   }
 `;
+export const CREATE_COMMENT = gql`
+  mutation CreateComment($input: CreateCommentInput!) {
+    createComment(input: $input) {
+      id
+      content
+      createdAt
+      user {
+        id
+        name
+        avatar
+      }
+    }
+  }
+`;

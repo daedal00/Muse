@@ -162,5 +162,14 @@ type Repositories struct {
 	Playlist    PlaylistRepository
 	Spotify     SpotifyTokenRepository
 	Session     SessionRepository
+	Comment     CommentRepository
 	MusicCache  MusicCacheRepository // New: Redis music cache
+}
+
+type CommentRepository interface {
+	Create(ctx context.Context, comment *models.Comment) error
+	GetByAlbumID(ctx context.Context, albumID uuid.UUID, limit, offset int) ([]*models.Comment, error)
+	CountByAlbumID(ctx context.Context, albumID uuid.UUID) (int, error)
+	GetByTrackID(ctx context.Context, trackID uuid.UUID, limit, offset int) ([]*models.Comment, error)
+	CountByTrackID(ctx context.Context, trackID uuid.UUID) (int, error)
 }

@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@apollo/client";
 import { GET_ME, GET_TRACK } from "../../lib/graphql/queries";
 import { CREATE_TRACK_REVIEW } from "../../lib/graphql/mutations";
 import StarRating from "../../components/StarRating";
+import CommentSection from "../../components/CommentSection";
 
 const formatDuration = (durationSeconds?: number) => {
   if (!durationSeconds && durationSeconds !== 0) return null;
@@ -26,6 +27,7 @@ export default function TrackDetailPage() {
   const isAuthed = Boolean(meData?.me);
 
   const [selectedRating, setSelectedRating] = React.useState<number>(0);
+  const [reviewText, setReviewText] = React.useState<string>("");
   const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
 
   const [createTrackReview, { loading: saving, error: saveError }] =
@@ -46,12 +48,14 @@ export default function TrackDetailPage() {
       return;
     }
     const existing = data.track.reviews.edges.find(
-      (edge: any) => edge.node.user.id === meData.me.id
+      (edge: any) => edge.node.user.id === meData.me.id,
     );
     if (existing?.node?.rating) {
       setSelectedRating(existing.node.rating);
+      setReviewText(existing.node.reviewText || "");
     } else {
       setSelectedRating(0);
+      setReviewText("");
     }
   }, [data?.track?.reviews?.edges, meData?.me?.id]);
 
@@ -69,13 +73,14 @@ export default function TrackDetailPage() {
           input: {
             trackId: trackID,
             rating: selectedRating,
+            reviewText: reviewText,
           },
         },
       });
       setSaveMessage("Rating saved.");
     } catch (err) {
       setSaveMessage(
-        err instanceof Error ? err.message : "Failed to save rating"
+        err instanceof Error ? err.message : "Failed to save rating",
       );
     }
   };
@@ -101,7 +106,10 @@ export default function TrackDetailPage() {
     return (
       <div className="card text-center">
         <p className="text-amber-600 dark:text-amber-300">Track not found.</p>
-        <Link href="/search" className="text-emerald-600 hover:text-emerald-500">
+        <Link
+          href="/search"
+          className="text-emerald-600 hover:text-emerald-500"
+        >
           Back to Search
         </Link>
       </div>
@@ -118,9 +126,27 @@ export default function TrackDetailPage() {
 
   return (
     <div className="space-y-8">
-      <Link href="/search" className="text-emerald-600 hover:text-emerald-500">
-        {"<- Back to Search"}
-      </Link>
+      <button
+        onClick={() => router.back()}
+        className="text-emerald-600 hover:text-emerald-500 flex items-center gap-2 group mb-6"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="group-hover:-translate-x-1 transition-transform"
+        >
+          <path d="m12 19-7-7 7-7" />
+          <path d="M19 12H5" />
+        </svg>
+        Back
+      </button>
 
       <div className="card">
         <div className="flex flex-col md:flex-row md:items-start md:space-x-6">
@@ -163,7 +189,8 @@ export default function TrackDetailPage() {
             )}
             {track.album?.releaseDate && (
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Released: {new Date(track.album.releaseDate).toLocaleDateString()}
+                Released:{" "}
+                {new Date(track.album.releaseDate).toLocaleDateString()}
               </p>
             )}
             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -200,13 +227,19 @@ export default function TrackDetailPage() {
         {isAuthed ? (
           <div className="space-y-4">
             <StarRating value={selectedRating} onChange={setSelectedRating} />
+            <textarea
+              className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-y min-h-[100px]"
+              placeholder="Write a review (optional)..."
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+            />
             <button
               type="button"
               onClick={handleSaveRating}
               className="btn-primary"
               disabled={saving}
             >
-              {saving ? "Saving..." : "Save rating"}
+              {saving ? "Saving..." : "Save review"}
             </button>
             {saveMessage && (
               <p className="text-sm text-emerald-600">{saveMessage}</p>
@@ -217,9 +250,7 @@ export default function TrackDetailPage() {
           </div>
         ) : (
           <div>
-            <p className="muted">
-              Login to add a rating to this track.
-            </p>
+            <p className="muted">Login to add a rating to this track.</p>
             <Link href="/auth" className="btn-secondary mt-4">
               Login to rate
             </Link>
@@ -259,6 +290,19 @@ export default function TrackDetailPage() {
           </p>
         )}
       </div>
+
+      <CommentSection
+        targetId={trackID}
+        targetType="TRACK"
+        comments={track.comments || { edges: [], totalCount: 0 }}
+        isAuthed={isAuthed}
+        refetchQueries={[
+          {
+            query: GET_TRACK,
+            variables: { id: trackID, reviewsFirst: 20 },
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -146,6 +146,25 @@ export const GET_ALBUM = gql`
           hasNextPage
           endCursor
         }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+      comments(first: 20) {
+        totalCount
+        edges {
+          node {
+            id
+            content
+            createdAt
+            user {
+              id
+              name
+              avatar
+            }
+          }
+        }
       }
     }
   }
@@ -188,6 +207,21 @@ export const GET_TRACK = gql`
         pageInfo {
           hasNextPage
           endCursor
+        }
+      }
+      comments(first: 20) {
+        totalCount
+        edges {
+          node {
+            id
+            content
+            createdAt
+            user {
+              id
+              name
+              avatar
+            }
+          }
         }
       }
     }

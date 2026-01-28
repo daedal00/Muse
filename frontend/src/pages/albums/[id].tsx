@@ -1,9 +1,11 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useQuery } from "@apollo/client";
-import { GET_ALBUM } from "../../lib/graphql/queries";
+import { useMutation, useQuery } from "@apollo/client";
+import { GET_ALBUM, GET_ME } from "../../lib/graphql/queries";
+import { CREATE_REVIEW } from "../../lib/graphql/mutations";
 import StarRating from "../../components/StarRating";
+import CommentSection from "../../components/CommentSection";
 
 const formatDuration = (durationSeconds?: number) => {
   if (!durationSeconds && durationSeconds !== 0) return null;
@@ -20,6 +22,73 @@ export default function AlbumDetailPage() {
     variables: { id: albumID, tracksFirst: 50, reviewsFirst: 20 },
     skip: !albumID,
   });
+
+  const { data: meData } = useQuery(GET_ME);
+  const isAuthed = Boolean(meData?.me);
+
+  const [selectedRating, setSelectedRating] = React.useState<number>(0);
+  const [reviewText, setReviewText] = React.useState<string>("");
+  const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
+
+  const [createReview, { loading: saving, error: saveError }] = useMutation(
+    CREATE_REVIEW,
+    {
+      refetchQueries: albumID
+        ? [
+            {
+              query: GET_ALBUM,
+              variables: { id: albumID, tracksFirst: 50, reviewsFirst: 20 },
+            },
+            {
+              query: GET_ME, // To update user's review list if needed
+            },
+          ]
+        : [],
+      awaitRefetchQueries: true,
+    },
+  );
+
+  React.useEffect(() => {
+    if (!data?.album?.reviews?.edges || !meData?.me?.id) {
+      return;
+    }
+    const existing = data.album.reviews.edges.find(
+      (edge: any) => edge.node.user.id === meData.me.id,
+    );
+    if (existing?.node?.rating) {
+      setSelectedRating(existing.node.rating);
+      setReviewText(existing.node.reviewText || "");
+    } else {
+      setSelectedRating(0);
+      setReviewText("");
+    }
+  }, [data?.album?.reviews?.edges, meData?.me?.id]);
+
+  const handleSaveRating = async () => {
+    if (!albumID) return;
+    if (selectedRating < 1) {
+      setSaveMessage("Select a rating before saving.");
+      return;
+    }
+
+    setSaveMessage(null);
+    try {
+      await createReview({
+        variables: {
+          input: {
+            albumId: albumID,
+            rating: selectedRating,
+            reviewText: reviewText,
+          },
+        },
+      });
+      setSaveMessage("Review saved.");
+    } catch (err) {
+      setSaveMessage(
+        err instanceof Error ? err.message : "Failed to save review",
+      );
+    }
+  };
 
   if (loading) {
     return (
@@ -42,7 +111,10 @@ export default function AlbumDetailPage() {
     return (
       <div className="card text-center">
         <p className="text-amber-600 dark:text-amber-300">Album not found.</p>
-        <Link href="/albums" className="text-emerald-600 hover:text-emerald-500">
+        <Link
+          href="/albums"
+          className="text-emerald-600 hover:text-emerald-500"
+        >
           Back to Albums
         </Link>
       </div>
@@ -55,9 +127,27 @@ export default function AlbumDetailPage() {
 
   return (
     <div className="space-y-8">
-      <Link href="/albums" className="text-emerald-600 hover:text-emerald-500">
-        {"<- Back to Albums"}
-      </Link>
+      <button
+        onClick={() => router.back()}
+        className="text-emerald-600 hover:text-emerald-500 flex items-center gap-2 group mb-6"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="group-hover:-translate-x-1 transition-transform"
+        >
+          <path d="m12 19-7-7 7-7" />
+          <path d="M19 12H5" />
+        </svg>
+        Back
+      </button>
 
       <div className="card">
         <div className="flex flex-col md:flex-row md:items-start md:space-x-6">
@@ -133,6 +223,42 @@ export default function AlbumDetailPage() {
       </div>
 
       <div className="card">
+        <h2 className="text-2xl font-semibold mb-4">Rate this album</h2>
+        {isAuthed ? (
+          <div className="space-y-4">
+            <StarRating value={selectedRating} onChange={setSelectedRating} />
+            <textarea
+              className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-y min-h-[100px]"
+              placeholder="Write a review (optional)..."
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={handleSaveRating}
+              className="btn-primary"
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save review"}
+            </button>
+            {saveMessage && (
+              <p className="text-sm text-emerald-600">{saveMessage}</p>
+            )}
+            {saveError && (
+              <p className="text-sm text-rose-500">{saveError.message}</p>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p className="muted">Login to add a rating to this album.</p>
+            <Link href="/auth" className="btn-secondary mt-4">
+              Login to rate
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
         <h2 className="text-2xl font-semibold mb-4">Reviews</h2>
         {album.reviews.edges.length > 0 ? (
           <div className="space-y-4">
@@ -169,6 +295,19 @@ export default function AlbumDetailPage() {
           </p>
         )}
       </div>
+
+      <CommentSection
+        targetId={albumID}
+        targetType="ALBUM"
+        comments={album.comments || { edges: [], totalCount: 0 }}
+        isAuthed={isAuthed}
+        refetchQueries={[
+          {
+            query: GET_ALBUM,
+            variables: { id: albumID, tracksFirst: 50, reviewsFirst: 20 },
+          },
+        ]}
+      />
     </div>
   );
 }

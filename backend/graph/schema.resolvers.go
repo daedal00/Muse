@@ -190,6 +190,57 @@ func (r *albumResolver) Reviews(ctx context.Context, obj *model.Album, first *in
 	}, nil
 }
 
+// Comments is the resolver for the comments field.
+func (r *albumResolver) Comments(ctx context.Context, obj *model.Album, first *int32, after *string) (*model.CommentConnection, error) {
+	albumID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid album ID")
+	}
+
+	limit := resolveLimit(first, 20)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	comments, err := r.repos.Comment.GetByAlbumID(ctx, albumID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch comments: %w", err)
+	}
+
+	hasNextPage := len(comments) > limit
+	if hasNextPage {
+		comments = comments[:limit]
+	}
+
+	edges := make([]*model.CommentEdge, len(comments))
+	for i, c := range comments {
+		edges[i] = &model.CommentEdge{
+			Cursor: r.paginationHelper.EncodeCursor(c.ID.String(), c.CreatedAt, offset+i),
+			Node:   c,
+		}
+	}
+
+	totalCount, err := r.repos.Comment.CountByAlbumID(ctx, albumID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count comments: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.CommentConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
 // Albums is the resolver for the albums field.
 func (r *artistResolver) Albums(ctx context.Context, obj *model.Artist, first *int32, after *string) (*model.AlbumConnection, error) {
 	artistID, err := uuid.Parse(obj.ID)
@@ -246,6 +297,25 @@ func (r *artistResolver) Albums(ctx context.Context, obj *model.Artist, first *i
 			HasNextPage: hasNextPage,
 		},
 	}, nil
+}
+
+// ID is the resolver for the id field.
+func (r *commentResolver) ID(ctx context.Context, obj *models.Comment) (string, error) {
+	return obj.ID.String(), nil
+}
+
+// User is the resolver for the user field.
+func (r *commentResolver) User(ctx context.Context, obj *models.Comment) (*model.User, error) {
+	dbUser, err := r.repos.User.GetByID(ctx, obj.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	return dbUserToGraphQL(dbUser), nil
+}
+
+// CreatedAt is the resolver for the createdAt field.
+func (r *commentResolver) CreatedAt(ctx context.Context, obj *models.Comment) (string, error) {
+	return obj.CreatedAt.Format(time.RFC3339), nil
 }
 
 // CreateUser is the resolver for the createUser field.
@@ -397,10 +467,10 @@ func (r *mutationResolver) UpdateProfileSettings(ctx context.Context, input mode
 	}
 
 	return &model.ProfileSettings{
-		Layout:          layout,
-		PinnedAlbumIds:  pinnedAlbums,
-		PinnedTrackIds:  pinnedTracks,
-		SectionsOrder:   sectionsOrder,
+		Layout:           layout,
+		PinnedAlbumIds:   pinnedAlbums,
+		PinnedTrackIds:   pinnedTracks,
+		SectionsOrder:    sectionsOrder,
 		ShowSpotifyStats: showSpotify,
 	}, nil
 }
@@ -781,6 +851,7 @@ func (r *mutationResolver) SpotifyAuthURL(ctx context.Context, redirectURI *stri
 		redirect = r.sanitizeRedirectURI(*redirectURI)
 	}
 
+	log.Printf("[AUTH] Generating Spotify Auth URL with Redirect URI: %s", r.config.SpotifyRedirectURL)
 	claims := SpotifyStateClaims{
 		UserID:      userID.String(),
 		RedirectURI: redirect,
@@ -941,6 +1012,61 @@ func (r *mutationResolver) ImportSpotifyPlaylist(ctx context.Context, spotifyPla
 	}
 
 	return summary, nil
+}
+
+// CreateComment is the resolver for the createComment field.
+func (r *mutationResolver) CreateComment(ctx context.Context, input model.CreateCommentInput) (*models.Comment, error) {
+	// 1) Extract UserID from Context
+	raw := ctx.Value(UserIDKey)
+	if raw == nil {
+		return nil, fmt.Errorf("unauthenticated")
+	}
+	currentUserID := raw.(string)
+	userID, err := uuid.Parse(currentUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
+	// 2) Validate Target
+	if input.AlbumID == nil && input.TrackID == nil {
+		return nil, fmt.Errorf("must specify either albumId or trackId")
+	}
+	if input.AlbumID != nil && input.TrackID != nil {
+		return nil, fmt.Errorf("cannot specify both albumId and trackId")
+	}
+
+	// 3) Create DB Model
+	comment := &models.Comment{
+		ID:        uuid.New(),
+		UserID:    userID,
+		Content:   input.Content,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if input.AlbumID != nil {
+		aid, err := uuid.Parse(*input.AlbumID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid album ID")
+		}
+		comment.AlbumID = &aid
+	}
+
+	if input.TrackID != nil {
+		tid, err := uuid.Parse(*input.TrackID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid track ID")
+		}
+		comment.TrackID = &tid
+	}
+
+	// 4) Save to DB
+	if err := r.repos.Comment.Create(ctx, comment); err != nil {
+		return nil, fmt.Errorf("failed to create comment: %w", err)
+	}
+
+	// 5) Return
+	return comment, nil
 }
 
 // Tracks is the resolver for the tracks field.
@@ -2574,15 +2700,66 @@ func (r *trackResolver) Reviews(ctx context.Context, obj *model.Track, first *in
 	}, nil
 }
 
+// Comments is the resolver for the comments field.
+func (r *trackResolver) Comments(ctx context.Context, obj *model.Track, first *int32, after *string) (*model.CommentConnection, error) {
+	trackID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid track ID")
+	}
+
+	limit := resolveLimit(first, 20)
+	offset, err := r.resolveOffset(after)
+	if err != nil {
+		return nil, err
+	}
+
+	comments, err := r.repos.Comment.GetByTrackID(ctx, trackID, limit+1, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch comments: %w", err)
+	}
+
+	hasNextPage := len(comments) > limit
+	if hasNextPage {
+		comments = comments[:limit]
+	}
+
+	edges := make([]*model.CommentEdge, len(comments))
+	for i, c := range comments {
+		edges[i] = &model.CommentEdge{
+			Cursor: r.paginationHelper.EncodeCursor(c.ID.String(), c.CreatedAt, offset+i),
+			Node:   c,
+		}
+	}
+
+	totalCount, err := r.repos.Comment.CountByTrackID(ctx, trackID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count comments: %w", err)
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		endCursor = &edges[len(edges)-1].Cursor
+	}
+
+	return &model.CommentConnection{
+		TotalCount: safeIntToInt32(totalCount),
+		Edges:      edges,
+		PageInfo: &model.PageInfo{
+			EndCursor:   endCursor,
+			HasNextPage: hasNextPage,
+		},
+	}, nil
+}
+
 // ProfileSettings is the resolver for the profileSettings field.
 func (r *userResolver) ProfileSettings(ctx context.Context, obj *model.User) (*model.ProfileSettings, error) {
 	// Return default profile settings
 	// In a full implementation, this would fetch from a profile_settings table
 	return &model.ProfileSettings{
-		Layout:          model.ProfileLayoutGrid,
-		PinnedAlbumIds:  []string{},
-		PinnedTrackIds:  []string{},
-		SectionsOrder:   []string{"favorites", "recentReviews", "topTracks", "playlists"},
+		Layout:           model.ProfileLayoutGrid,
+		PinnedAlbumIds:   []string{},
+		PinnedTrackIds:   []string{},
+		SectionsOrder:    []string{"favorites", "recentReviews", "topTracks", "playlists"},
 		ShowSpotifyStats: true,
 	}, nil
 }
@@ -2881,6 +3058,9 @@ func (r *Resolver) Album() AlbumResolver { return &albumResolver{r} }
 // Artist returns ArtistResolver implementation.
 func (r *Resolver) Artist() ArtistResolver { return &artistResolver{r} }
 
+// Comment returns CommentResolver implementation.
+func (r *Resolver) Comment() CommentResolver { return &commentResolver{r} }
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
@@ -2901,9 +3081,26 @@ func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
 type albumResolver struct{ *Resolver }
 type artistResolver struct{ *Resolver }
+type commentResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type playlistResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
 type trackResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func dbCommentToGraphQL(c *models.Comment) *model.Comment {
+	return &model.Comment{
+		ID:        c.ID.String(),
+		Content:   c.Content,
+		CreatedAt: c.CreatedAt.Format(time.RFC3339),
+	}
+}
+*/

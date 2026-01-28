@@ -62,6 +62,7 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 		TrackReview: postgres.NewTrackReviewRepository(postgresDB),
 		Playlist:    postgres.NewPlaylistRepository(postgresDB),
 		Spotify:     postgres.NewSpotifyTokenRepository(postgresDB),
+		Comment:     postgres.NewCommentRepository(postgresDB),
 		Session:     sessionRepo,
 		MusicCache:  musicCacheRepo,
 	}
@@ -74,7 +75,7 @@ func NewResolver(cfg *config.Config) (*Resolver, error) {
 			ClientID:     cfg.SpotifyClientID,
 			ClientSecret: cfg.SpotifyClientSecret,
 			RedirectURL:  cfg.SpotifyRedirectURL, // Used for OAuth callback
-			Scopes:       []string{},                       // No scopes needed for client credentials flow
+			Scopes:       []string{},             // No scopes needed for client credentials flow
 		})
 
 		// Get client credentials client for public API access
